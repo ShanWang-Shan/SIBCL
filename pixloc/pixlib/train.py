@@ -16,19 +16,21 @@ from tqdm import tqdm
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
-from .datasets import get_dataset
-from .models import get_model
-from .utils.stdout_capturing import capture_outputs
-from .utils.tools import AverageMetric, MedianMetric, set_seed, fork_rng
-from .utils.tensor import batch_to_device
-from .utils.experiments import (
+from datasets import get_dataset
+from models import get_model
+from utils.stdout_capturing import capture_outputs
+from pixloc.pixlib.utils.tools import AverageMetric, MedianMetric, set_seed, fork_rng
+from pixloc.pixlib.utils.tensor import batch_to_device
+from pixloc.pixlib.utils.experiments import (
     delete_old_checkpoints, get_last_checkpoint, get_best_checkpoint)
-from ..settings import TRAINING_PATH
-from .. import logger
+from pixloc.settings import TRAINING_PATH
+from pixloc import logger
+
+import numpy as np
 
 
 default_train_conf = {
-    'seed': '???',  # training seed
+    'seed': 20,  # training seed
     'epochs': 1,  # number of epochs
     'optimizer': 'adam',  # name of optimizer in [adam, sgd, rmsprop]
     'opt_regexp': None,  # regular expression to filter parameters to optimize
@@ -51,12 +53,21 @@ default_train_conf = OmegaConf.create(default_train_conf)
 def do_evaluation(model, loader, device, loss_fn, metrics_fn, conf, pbar=True):
     model.eval()
     results = {}
+    acc = 0
+    total = 0
+    errR = []
+    errt = []
     for data in tqdm(loader, desc='Evaluation', ascii=True, disable=not pbar):
         data = batch_to_device(data, device, non_blocking=True)
         with torch.no_grad():
             pred = model(data)
             losses = loss_fn(pred, data)
             metrics = metrics_fn(pred, data)
+
+            if metrics['t_error'].item() < 1 and metrics['R_error'].item() < 2:
+                acc += 1
+            total += 1
+
             del pred, data
         numbers = {**metrics, **{'loss/'+k: v for k, v in losses.items()}}
         for k, v in numbers.items():
@@ -67,6 +78,7 @@ def do_evaluation(model, loader, device, loss_fn, metrics_fn, conf, pbar=True):
             results[k].update(v)
             if k in conf.median_metrics:
                 results[k+'_median'].update(v)
+    print('acc:', acc / total)
     results = {k: results[k].compute() for k in results}
     return results
 
@@ -123,6 +135,7 @@ def training(rank, conf, output_dir, args):
         best_cp = torch.load(str(best_cp), map_location='cpu')
         best_eval = best_cp['eval'][conf.train.best_key]
         del best_cp
+
     else:
         # we start a new, fresh training
         conf.train = OmegaConf.merge(default_train_conf, conf.train)
@@ -197,6 +210,14 @@ def training(rank, conf, output_dir, args):
     loss_fn, metrics_fn = model.loss, model.metrics
     if init_cp is not None:
         model.load_state_dict(init_cp['model'])
+
+    #     #fix parameter for sat training
+    #     for param in model.extractor.parameters():
+    #         param.requires_grad = False
+    #
+    # # add satellite extractor
+    # model.add_sat_extractor()
+
     if args.distributed:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
         model = torch.nn.parallel.DistributedDataParallel(
@@ -204,7 +225,7 @@ def training(rank, conf, output_dir, args):
     if rank == 0:
         logger.info(f'Model: \n{model}')
     torch.backends.cudnn.benchmark = True
-    # torch.autograd.set_detect_anomaly(True)
+    torch.autograd.set_detect_anomaly(True)
 
     optimizer_fn = {'sgd': torch.optim.SGD,
                     'adam': torch.optim.Adam,
@@ -214,8 +235,12 @@ def training(rank, conf, output_dir, args):
         params = filter_parameters(params, conf.train.opt_regexp)
     all_params = [p for n, p in params]
 
-    lr_params = pack_lr_parameters(
-            params, conf.train.lr, conf.train.lr_scaling)
+    if 'lr_scaling' not in conf.train.keys():
+        lr_params = pack_lr_parameters(
+            params, conf.train.lr, default_train_conf.lr_scaling)
+    else:
+        lr_params = pack_lr_parameters(
+                params, conf.train.lr, conf.train.lr_scaling)
     optimizer = optimizer_fn(
             lr_params, lr=conf.train.lr, **conf.train.optimizer_options)
     def lr_fn(it):  # noqa: E306
@@ -228,7 +253,7 @@ def training(rank, conf, output_dir, args):
             raise ValueError(conf.train.lr_schedule.type)
     lr_scheduler = torch.optim.lr_scheduler.MultiplicativeLR(optimizer, lr_fn)
     if args.restore:
-        optimizer.load_state_dict(init_cp['optimizer'])
+        optimizer.load_state_dict(init_cp['optimizer']) # delte because para not same after add satellite feature extractor
         if 'lr_scheduler' in init_cp:
             lr_scheduler.load_state_dict(init_cp['lr_scheduler'])
 
@@ -243,9 +268,9 @@ def training(rank, conf, output_dir, args):
         set_seed(conf.train.seed + epoch)
         if args.distributed:
             train_loader.sampler.set_epoch(epoch)
-        if epoch > 0 and conf.train.dataset_callback_fn:
-            getattr(train_loader.dataset, conf.train.dataset_callback_fn)(
-                conf.train.seed + epoch)
+        # if epoch > 0 and conf.train.dataset_callback_fn:
+        #     getattr(train_loader.dataset, conf.train.dataset_callback_fn)(
+        #         conf.train.seed + epoch)
 
         for it, data in enumerate(train_loader):
             tot_it = len(train_loader)*epoch + it
@@ -302,8 +327,11 @@ def training(rank, conf, output_dir, args):
 
             del pred, data, loss, losses
 
-            if ((it % conf.train.eval_every_iter == 0) or stop
-                    or it == (len(train_loader)-1)):
+            if (stop or it == (len(train_loader) - 1)):
+            # if (((it % conf.train.eval_every_iter == 0) and it!=0) or stop
+            #         or it == (len(train_loader)-1)):
+            # if ((it % conf.train.eval_every_iter == 0) or stop
+            #         or it == (len(train_loader) - 1)):
                 with fork_rng(seed=conf.train.seed):
                     results = do_evaluation(
                         model, val_loader, device, loss_fn, metrics_fn,
@@ -359,12 +387,13 @@ def main_worker(rank, conf, output_dir, args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('experiment', type=str)
+    parser.add_argument('--experiment', type=str, default='pixloc_kitti')
     parser.add_argument('--conf', type=str)
-    parser.add_argument('--overfit', action='store_true')
-    parser.add_argument('--restore', action='store_true')
-    parser.add_argument('--distributed', action='store_true')
-    parser.add_argument('dotlist', nargs='*')
+    parser.add_argument('--overfit', action='store_true', default=False)
+    parser.add_argument('--restore', action='store_true', default=True)
+    parser.add_argument('--distributed', action='store_true',default=False)
+    parser.add_argument('--dotlist', nargs='*', default=["data.name=kitti","data.max_num_points3D=10000","data.force_num_points3D=False",
+                                                         "data.num_workers=1","data.batch_size=1","train.eval_every_iter=10000"])
     args = parser.parse_intermixed_args()
 
     logger.info(f'Starting experiment {args.experiment}')
@@ -375,8 +404,8 @@ if __name__ == '__main__':
     if args.conf:
         conf = OmegaConf.merge(OmegaConf.load(args.conf), conf)
     if not args.restore:
-        if conf.train.seed is None:
-            conf.train.seed = torch.initial_seed() & (2**32 - 1)
+        #if conf.train.seed is None:
+        conf.train.seed = torch.initial_seed() & (2**32 - 1) #default_train_conf.seed
         OmegaConf.save(conf, str(output_dir / 'config.yaml'))
 
     if args.distributed:

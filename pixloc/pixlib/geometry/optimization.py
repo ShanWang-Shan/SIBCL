@@ -24,15 +24,24 @@ def optimizer_step(g, H, lambda_=0, mute=False, mask=None, eps=1e-6):
         # set g to 0 to delta is 0 for masked elements
         g = g.masked_fill(~mask[..., None], 0.)
 
+    # add by shan
+    if torch.isnan(g).any() or torch.isnan(H).any():
+        print('nan in g or H, return 0 delta')
+        delta = torch.zeros(g.size(0),6)
+        return delta.to(H.device)
+
     H_, g_ = H.cpu(), g.cpu()
+
     try:
-        U = torch.cholesky(H_, upper=True)
+        U = torch.linalg.cholesky(H_.transpose(-2, -1).conj()).transpose(-2, -1).conj()
+        #U = torch.cholesky(H_, upper=True)
     except RuntimeError as e:
         if 'singular U' in str(e):
             if not mute:
                 logger.debug(
                     'Cholesky decomposition failed, fallback to LU.')
-            delta = -torch.solve(g_[..., None], H_)[0][..., 0]
+            #delta = -torch.solve(g_[..., None], H_)[0][..., 0]
+            delta = -torch.linalg.solve(H_, g_[..., None])[0][..., 0]
         else:
             raise
     else:

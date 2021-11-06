@@ -7,11 +7,12 @@ from torch.nn import functional as nnF
 import logging
 from copy import deepcopy
 import omegaconf
+import numpy as np
 
-from .base_model import BaseModel
-from . import get_model
-from .utils import masked_mean
-from ..geometry.losses import scaled_barron
+from pixloc.pixlib.models.base_model import BaseModel
+from pixloc.pixlib.models import get_model
+from pixloc.pixlib.models.utils import masked_mean
+from pixloc.pixlib.geometry.losses import scaled_barron
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ class TwoViewRefiner(BaseModel):
     def _init(self, conf):
         self.extractor = get_model(conf.extractor.name)(conf.extractor)
         assert hasattr(self.extractor, 'scales')
+        self.extractor_sat = deepcopy(self.extractor) # add by shan
 
         Opt = get_model(conf.optimizer.name)
         if conf.duplicate_optimizer_per_scale:
@@ -67,7 +69,18 @@ class TwoViewRefiner(BaseModel):
                                     for s in self.extractor.scales]
             return pred_i
 
+        # change by shan
         pred = {i: process_siamese(data[i]) for i in ['ref', 'query']}
+
+        # # add by shan for satellite image extractor
+        # def process_sat(data_i):
+        #     pred_i = self.extractor_sat(data_i)
+        #     pred_i['camera_pyr'] = [data_i['camera'].scale(1/s)
+        #                             for s in self.extractor_sat.scales]
+        #     return pred_i
+        # pred = {i: process_siamese(data[i]) for i in ['ref']}
+        # pred.update({i: process_sat(data[i]) for i in ['query']})
+
         p3D_ref = data['ref']['points3D']
         T_init = data['T_r2q_init']
 
@@ -106,8 +119,13 @@ class TwoViewRefiner(BaseModel):
             pred['T_r2q_init'].append(T_init)
             pred['T_r2q_opt'].append(T_opt)
             T_init = T_opt.detach()
-
         return pred
+
+    # add by shan for satellite image extractor
+    def add_sat_extractor(self):
+        self.extractor_sat = deepcopy(self.extractor)
+        for param in self.extractor_sat.parameters():
+            param.requires_grad = True
 
     def loss(self, pred, data):
         cam_q = data['query']['camera']
@@ -121,11 +139,12 @@ class TwoViewRefiner(BaseModel):
 
         too_few = torch.sum(mask, -1) < 10
         if torch.any(too_few):
-            logger.warning(
-                'Few points in batch '+str([
-                    (data['scene'][i], data['ref']['index'][i].item(),
-                     data['query']['index'][i].item())
-                    for i in torch.where(too_few)[0]]))
+            logger.warning('Few points in batch '+str(data['scene']))
+            # logger.warning(
+            #     'Few points in batch '+str([
+            #         (data['scene'][i], data['ref']['index'][i].item(),
+            #          data['query']['index'][i].item())
+            #         for i in torch.where(too_few)[0]]))
 
         def reprojection_error(T_r2q):
             p2D_q, _ = project(T_r2q)
@@ -160,9 +179,13 @@ class TwoViewRefiner(BaseModel):
         @torch.no_grad()
         def scaled_pose_error(T_r2q):
             err_R, err_t = (T_r2q @ T_q2r_gt).magnitude()
+            err_x = (T_r2q @ T_q2r_gt).magnitude_lateral()
             if self.conf.normalize_dt:
                 err_t /= torch.norm(T_q2r_gt.t, dim=-1)
-            return err_R, err_t
+            # change for validate lateral error only, change by shan
+            # return err_R, err_t
+                err_x /= T_q2r_gt.magnitude_lateral()
+            return err_R, err_x
 
         metrics = {}
         for i, T_opt in enumerate(pred['T_r2q_opt']):

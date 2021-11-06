@@ -216,6 +216,12 @@ class Pose(TensorWrapper):
         dr = torch.acos(cos).abs() / math.pi * 180
         dt = torch.norm(self.t, dim=-1)
         return dr, dt
+    def magnitude_lateral(self) -> Tuple[torch.Tensor]:
+        '''Magnitude of the SE(3) transformation.
+        Returns:
+            dx: translation distance in meters.
+        '''
+        return torch.abs(self.t[..., -3])
 
     def __repr__(self):
         return f'Pose: {self.shape} {self.dtype} {self.device}'
@@ -225,7 +231,7 @@ class Camera(TensorWrapper):
     eps = 1e-4
 
     def __init__(self, data: torch.Tensor):
-        assert data.shape[-1] in {6, 8, 10}
+        assert data.shape[-1] in {6, 8, 10, 11}
         super().__init__(data)
 
     @classmethod
@@ -272,7 +278,7 @@ class Camera(TensorWrapper):
     @property
     def dist(self) -> torch.Tensor:
         '''Distortion parameters, with shape (..., {0, 2, 4}).'''
-        return self._data[..., 6:]
+        return self._data[..., 6:-1]
 
     def scale(self, scales: Union[float, int, Tuple[Union[float, int]]]):
         '''Update the camera parameters after resizing an image.'''
@@ -309,14 +315,21 @@ class Camera(TensorWrapper):
     @autocast
     def project(self, p3d: torch.Tensor) -> Tuple[torch.Tensor]:
         '''Project 3D points into the camera plane and check for visibility.'''
-        z = p3d[..., -1]
+        if np.infty in self._data:
+            z = torch.ones_like(p3d[..., -1])
+        else:
+            z = p3d[..., -1]
         valid = z > self.eps
         z = z.clamp(min=self.eps)
+
         p2d = p3d[..., :-1] / z.unsqueeze(-1)
         return p2d, valid
 
     def J_project(self, p3d: torch.Tensor):
-        x, y, z = p3d[..., 0], p3d[..., 1], p3d[..., 2]
+        if np.infty in self._data:
+            x, y, z = p3d[..., 0], p3d[..., 1], torch.ones_like(p3d[..., 2])
+        else:
+            x, y, z = p3d[..., 0], p3d[..., 1], p3d[..., 2]
         zero = torch.zeros_like(z)
         J = torch.stack([
             1/z, zero, -x / z**2,
