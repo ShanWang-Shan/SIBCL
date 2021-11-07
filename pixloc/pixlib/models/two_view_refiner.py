@@ -43,7 +43,7 @@ class TwoViewRefiner(BaseModel):
     def _init(self, conf):
         self.extractor = get_model(conf.extractor.name)(conf.extractor)
         assert hasattr(self.extractor, 'scales')
-        self.extractor_sat = deepcopy(self.extractor) # add by shan
+        #self.extractor_sat = deepcopy(self.extractor) # add by shan
 
         Opt = get_model(conf.optimizer.name)
         if conf.duplicate_optimizer_per_scale:

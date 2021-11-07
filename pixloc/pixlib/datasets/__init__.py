@@ -1,5 +1,5 @@
-from ..utils.tools import get_class
-from .base_dataset import BaseDataset
+from pixloc.pixlib.utils.tools import get_class
+from pixloc.pixlib.datasets.base_dataset import BaseDataset
 
 
 def get_dataset(name):
