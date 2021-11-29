@@ -29,7 +29,7 @@ visualise_debug = True
 
 # depth_map_dir = '../../../depth/GANet/Kitti/'
 # keypoints_dir = 'Keypoints/lidar_512_points.h5' #lidar_64_points.h5 #lidar_orb_2_32_points.h5 #lidar_512_points.h5 # more data does not help
-root_dir = '/data/Kitti'
+root_dir = '/students/u6617221/shan/data'
 test_csv_file_name = 'test.csv'
 ignore_csv_file_name = 'ignore.csv'
 satmap_dir = 'satmap_20'
@@ -406,6 +406,7 @@ class _Dataset(Dataset):
         # sat_map = torch.cat([sat_map,self.sat_dis.clone(),self.sat_yaw.clone()],dim=0)
 
 
+        # sat 
         camera = Camera.from_colmap(dict(
             model='SIMPLE_PINHOLE', params=(1 / meter_per_pixel, body_location_x, body_location_y, 0,0,0,0,np.infty),#np.infty for parallel projection
             width=int(satellite_ori_size), height=int(satellite_ori_size)))
@@ -416,6 +417,7 @@ class _Dataset(Dataset):
             'points3D': torch.from_numpy(velodyne_sat).float()  # world is imu, from imu to sat
         }
 
+        # grd
         camera_para = (camera_k[0,0],camera_k[1,1],camera_k[0,2],camera_k[1,2])
         camera = Camera.from_colmap(dict(
             model='PINHOLE', params=camera_para,
@@ -427,7 +429,8 @@ class _Dataset(Dataset):
             'points3D': torch.from_numpy(velodyne_grd).float()  # world is imu
         }
 
-        sat2cam = grd_image['T_w2cam'] @ sat_image['T_w2cam'].inv()
+        r2q_gt = grd_image['T_w2cam'] @ sat_image['T_w2cam'].inv() # query:grd
+        #r2q_gt = sat_image['T_w2cam'] @ grd_image['T_w2cam'].inv() # query:sat
         # ramdom shift translation and ratation on yaw
         YawShiftRange = 2 * np.pi / 180 # in 10 degree
         yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
@@ -437,9 +440,8 @@ class _Dataset(Dataset):
         T = 2 * TShiftRange * np.random.rand((3)) - TShiftRange
         T[2] = 0 # no shift on height
 
-        sat2cam_init = Pose.from_Rt(R_yaw,T).float()
-        sat2cam_init = sat2cam@sat2cam_init
-        #sat2cam_init = sat2cam
+        r2q_init = Pose.from_Rt(R_yaw,T).float()
+        r2q_init = r2q_gt@r2q_init
 
         # scene
         scene = drive_dir[:4]+drive_dir[5:7]+drive_dir[8:10]+drive_dir[28:32]+image_no[:10]
@@ -448,8 +450,8 @@ class _Dataset(Dataset):
             'ref': grd_image, #sat_image,#
             'query': sat_image, #grd_image,#
             'overlap': 0.5,
-            'T_r2q_init': sat2cam_init,
-            'T_r2q_gt': sat2cam,  # sat2cam
+            'T_r2q_init': r2q_init,
+            'T_r2q_gt': r2q_gt, 
             'scene': scene
         }
 
@@ -482,14 +484,14 @@ class _Dataset(Dataset):
                            -1)
 
             # sat to grd gt green
-            cam_3d = sat2cam * velodyne_sat
+            cam_3d = r2q * velodyne_sat
             grd_2d, _ = grd_image['camera'].world2image(cam_3d)  ##camera 3d to 2d
             grd_2d = grd_2d.T
             for j in range(grd_2d.shape[1]):
                 cv2.circle(color_image0, (np.int32(grd_2d[0][j]), np.int32(grd_2d[1][j])), 2, (0, 255, 0),
                            -1)
             # sat to grd init blue
-            cam_3d = sat2cam_init * velodyne_sat
+            cam_3d = r2q_init * velodyne_sat
             grd_2d, _ = grd_image['camera'].world2image(cam_3d)  ##camera 3d to 2d
             grd_2d = grd_2d.T
             for j in range(grd_2d.shape[1]):
