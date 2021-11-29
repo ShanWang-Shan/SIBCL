@@ -3,6 +3,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+if version.parse(torch.__version__) >= version.parse('1.9'):
+    cholesky = torch.linalg.cholesky
+else:
+    cholesky = torch.cholesky
 
 def optimizer_step(g, H, lambda_=0, mute=False, mask=None, eps=1e-6):
     """One optimization step with Gauss-Newton or Levenberg-Marquardt.
@@ -33,8 +37,8 @@ def optimizer_step(g, H, lambda_=0, mute=False, mask=None, eps=1e-6):
     H_, g_ = H.cpu(), g.cpu()
 
     try:
-        U = torch.linalg.cholesky(H_.transpose(-2, -1).conj()).transpose(-2, -1).conj()
-        #U = torch.cholesky(H_, upper=True)
+        #U = torch.linalg.cholesky(H_.transpose(-2, -1).conj()).transpose(-2, -1).conj()
+        U = cholesky(H_)
     except RuntimeError as e:
         if 'singular U' in str(e):
             if not mute:
@@ -45,7 +49,7 @@ def optimizer_step(g, H, lambda_=0, mute=False, mask=None, eps=1e-6):
         else:
             raise
     else:
-        delta = -torch.cholesky_solve(g_[..., None], U, upper=True)[..., 0]
+        delta = -torch.cholesky_solve(g_[..., None], U)[..., 0]
 
     return delta.to(H.device)
 

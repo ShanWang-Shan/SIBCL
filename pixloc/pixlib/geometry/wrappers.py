@@ -228,7 +228,7 @@ class Pose(TensorWrapper):
 
 
 class Camera(TensorWrapper):
-    eps = 1e-4
+    eps = 1e-3
 
     def __init__(self, data: torch.Tensor):
         assert data.shape[-1] in {6, 8, 10, 11}
@@ -331,6 +331,7 @@ class Camera(TensorWrapper):
         else:
             x, y, z = p3d[..., 0], p3d[..., 1], p3d[..., 2]
         zero = torch.zeros_like(z)
+        z = z.clamp(min=self.eps)
         J = torch.stack([
             1/z, zero, -x / z**2,
             zero, 1/z, -y / z**2], dim=-1)
