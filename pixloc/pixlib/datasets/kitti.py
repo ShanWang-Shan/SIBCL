@@ -447,8 +447,8 @@ class _Dataset(Dataset):
         scene = drive_dir[:4]+drive_dir[5:7]+drive_dir[8:10]+drive_dir[28:32]+image_no[:10]
 
         data = {
-            'ref': grd_image, #sat_image,#
-            'query': sat_image, #grd_image,#
+            'ref': sat_image,
+            'query': grd_image,
             'overlap': 0.5,
             'T_r2q_init': r2q_init,
             'T_r2q_gt': r2q_gt, 
