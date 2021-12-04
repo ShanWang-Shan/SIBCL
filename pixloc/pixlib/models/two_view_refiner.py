@@ -16,6 +16,8 @@ from pixloc.pixlib.geometry.losses import scaled_barron
 
 logger = logging.getLogger(__name__)
 
+# add by shan
+share_weight = True
 
 class TwoViewRefiner(BaseModel):
     default_conf = {
@@ -43,7 +45,8 @@ class TwoViewRefiner(BaseModel):
     def _init(self, conf):
         self.extractor = get_model(conf.extractor.name)(conf.extractor)
         assert hasattr(self.extractor, 'scales')
-        self.extractor_sat = deepcopy(self.extractor) # add by shan
+        if not share_weight: 
+            self.extractor_sat = deepcopy(self.extractor) # add by shan
 
         Opt = get_model(conf.optimizer.name)
         if conf.duplicate_optimizer_per_scale:
@@ -70,16 +73,18 @@ class TwoViewRefiner(BaseModel):
             return pred_i
 
         # change by shan
-        #pred = {i: process_siamese(data[i]) for i in ['ref', 'query']}
+        if share_weight: 
+            pred = {i: process_siamese(data[i]) for i in ['ref', 'query']}
+        else:
 
-        # add by shan for satellite image extractor
-        def process_sat(data_i):
-            pred_i = self.extractor_sat(data_i)
-            pred_i['camera_pyr'] = [data_i['camera'].scale(1/s)
+            # add by shan for satellite image extractor
+            def process_sat(data_i):
+                pred_i = self.extractor_sat(data_i)
+                pred_i['camera_pyr'] = [data_i['camera'].scale(1/s)
                                     for s in self.extractor_sat.scales]
-            return pred_i
-        pred = {i: process_siamese(data[i]) for i in ['query']}
-        pred.update({i: process_sat(data[i]) for i in ['ref']})
+                return pred_i
+            pred = {i: process_siamese(data[i]) for i in ['query']}
+            pred.update({i: process_sat(data[i]) for i in ['ref']})
 
         p3D_ref = data['ref']['points3D']
         T_init = data['T_r2q_init']
