@@ -17,7 +17,7 @@ from pixloc.pixlib.geometry.losses import scaled_barron
 logger = logging.getLogger(__name__)
 
 # add by shan
-share_weight = True
+share_weight = False
 
 class TwoViewRefiner(BaseModel):
     default_conf = {
@@ -175,6 +175,13 @@ class TwoViewRefiner(BaseModel):
 
         err_init = reprojection_error(pred['T_r2q_init'][0])
         losses['reprojection_error/init'] = err_init
+
+        # add by shan, query & reprojection GT error, for query unet back propogate
+        if not share_weight:
+            err = torch.sum((p2D_q_gt - data['query']['points3D']) ** 2, dim=-1)
+            err = scaled_barron(1., 2.)(err)[0] / 4
+            err = masked_mean(err, mask, -1)
+            losses['total'] += err / num_scales
 
         return losses
 
