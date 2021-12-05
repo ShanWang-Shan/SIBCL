@@ -92,6 +92,7 @@ class TwoViewRefiner(BaseModel):
         pred['T_r2q_init'] = []
         pred['T_r2q_opt'] = []
         pred['valid_masks'] = []
+        pred['L1_loss'] = []
         for i in reversed(range(len(self.extractor.scales))):
             F_ref = pred['ref']['feature_maps'][i]
             F_q = pred['query']['feature_maps'][i]
@@ -117,6 +118,7 @@ class TwoViewRefiner(BaseModel):
                 F_ref = nnF.normalize(F_ref, dim=2)  # B x N x C
                 F_q = nnF.normalize(F_q, dim=1)  # B x C x W x H
 
+            # add weighted L1 loss
             T_opt, failed = opt(dict(
                 p3D=p3D_ref, F_ref=F_ref, F_q=F_q, T_init=T_init, cam_q=cam_q,
                 mask=mask, W_ref_q=W_ref_q))
@@ -124,7 +126,32 @@ class TwoViewRefiner(BaseModel):
             pred['T_r2q_init'].append(T_init)
             pred['T_r2q_opt'].append(T_opt)
             T_init = T_opt.detach()
+
+            # add by shan, query & reprojection GT error, for query unet back propogate
+            if not share_weight:
+                loss = self.preject_l1loss(opt, p3D_ref, F_ref, F_q, data['T_r2q_gt'], cam_q, mask=mask, W_ref_query=W_ref_q)
+                pred['L1_loss'].append(loss)
+
         return pred
+
+    def preject_l1loss(self, opt, p3D, F_ref, F_query, T_gt, camera, mask=None, W_ref_query= None):
+        F_ref = torch.nn.functional.normalize(F_ref, dim=-1)
+        F_query = torch.nn.functional.normalize(F_query, dim=-1)
+
+        args = (camera, p3D, F_ref, F_query, W_ref_query)
+        res, valid, w_unc, _, _ = opt.cost_fn.residuals(T_gt, *args)
+        if mask is not None:
+            valid &= mask
+
+        # compute the cost and aggregate the weights
+        cost = (res ** 2).sum(-1)
+        cost, w_loss, _ = opt.loss_fn(cost)
+        loss = w_loss * valid.float()
+        if w_unc is not None:
+            loss *= w_unc
+
+        return torch.sum(loss)
+
 
     # add by shan for satellite image extractor
     def add_sat_extractor(self):
@@ -178,10 +205,7 @@ class TwoViewRefiner(BaseModel):
 
         # add by shan, query & reprojection GT error, for query unet back propogate
         if not share_weight:
-            err = torch.sum((p2D_q_gt - data['query']['points3D']) ** 2, dim=-1)
-            err = scaled_barron(1., 2.)(err)[0] / 4
-            err = masked_mean(err, mask, -1)
-            losses['total'] += err / num_scales
+            losses['total'] += sum(pred['L1_loss'])/num_scales
 
         return losses
 

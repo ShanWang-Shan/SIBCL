@@ -393,7 +393,7 @@ if __name__ == '__main__':
     parser.add_argument('--restore', action='store_true', default=True)
     parser.add_argument('--distributed', action='store_true',default=False)
     parser.add_argument('--dotlist', nargs='*', default=["data.name=kitti","data.max_num_points3D=10000","data.force_num_points3D=False",
-                                                         "data.num_workers=1","data.batch_size=1","train.eval_every_iter=10000"])
+                                                         "data.num_workers=0","data.batch_size=1","train.eval_every_iter=10000"])
     args = parser.parse_intermixed_args()
 
     logger.info(f'Starting experiment {args.experiment}')
