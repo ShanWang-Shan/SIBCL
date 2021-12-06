@@ -129,7 +129,7 @@ def linear_annealing(init, fin, step, start_step=2000, end_step=6000):
         return fin
 
     delta = fin - init
-    annealed = min(init + dalta * (step - start_step) / (end_step - start_step), fin)
+    annealed = min(init + delta * (step - start_step) / (end_step - start_step), fin)
     return annealed
 
 def training(rank, conf, output_dir, args):
@@ -222,12 +222,12 @@ def training(rank, conf, output_dir, args):
     if init_cp is not None:
         model.load_state_dict(init_cp['model'])
 
-    #     #fix parameter for sat training
-    #     for param in model.extractor.parameters():
-    #         param.requires_grad = False
-    #
-    # # add satellite extractor
-    # model.add_sat_extractor()
+        #fix parameter for sat training
+        for param in model.extractor.parameters():
+            param.requires_grad = False
+
+    # add satellite extractor
+    model.add_sat_extractor()
 
     if args.distributed:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
@@ -264,7 +264,7 @@ def training(rank, conf, output_dir, args):
             raise ValueError(conf.train.lr_schedule.type)
     lr_scheduler = torch.optim.lr_scheduler.MultiplicativeLR(optimizer, lr_fn)
     if args.restore:
-        optimizer.load_state_dict(init_cp['optimizer']) # delte because para not same after add satellite feature extractor
+        #optimizer.load_state_dict(init_cp['optimizer']) # delte because para not same after add satellite feature extractor
         if 'lr_scheduler' in init_cp:
             lr_scheduler.load_state_dict(init_cp['lr_scheduler'])
 
@@ -289,12 +289,18 @@ def training(rank, conf, output_dir, args):
             model.train()
             optimizer.zero_grad()
             data = batch_to_device(data, device, non_blocking=True)
-            pred = model(data)
-            losses = loss_fn(pred, data)
 
             # combine total loss(RT) & L1 loss, add by shan # temp !!!!!!!!!!!!!
-            annealed = linear_annealing(0, 1, it, start_step=10000, end_step=30000)
-            loss = annealed * torch.mean(losses['total']) + torch.mean(losses['L1_loss'])
+            annealed = linear_annealing(0, 1, it, start_step=len(train_loader)*16, end_step=len(train_loader)*(16+2))
+            if annealed == 0:
+                opt_flag = False
+            else:
+                opt_flag = True
+
+            pred = model(data, opt_flag)
+            losses = loss_fn(pred, data)
+
+            loss = annealed * torch.mean(losses['total']) + torch.mean(losses['L1_loss']) # total is total of opt RT losses
             #loss = torch.mean(losses['total'])
 
             do_backward = loss.requires_grad

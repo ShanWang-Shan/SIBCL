@@ -45,8 +45,8 @@ class TwoViewRefiner(BaseModel):
     def _init(self, conf):
         self.extractor = get_model(conf.extractor.name)(conf.extractor)
         assert hasattr(self.extractor, 'scales')
-        if not share_weight: 
-            self.extractor_sat = deepcopy(self.extractor) # add by shan
+        # if not share_weight:
+        #     self.extractor_sat = deepcopy(self.extractor) # add by shan
 
         Opt = get_model(conf.optimizer.name)
         if conf.duplicate_optimizer_per_scale:
@@ -65,7 +65,7 @@ class TwoViewRefiner(BaseModel):
             raise ValueError('This entry has been deprecated. Please instead '
                              'use the `init_pose` config of the dataloader.')
 
-    def _forward(self, data):
+    def _forward(self, data, opt_flag=True):
         def process_siamese(data_i):
             pred_i = self.extractor(data_i)
             pred_i['camera_pyr'] = [data_i['camera'].scale(1/s)
@@ -118,9 +118,12 @@ class TwoViewRefiner(BaseModel):
                 F_ref = nnF.normalize(F_ref, dim=2)  # B x N x C
                 F_q = nnF.normalize(F_q, dim=1)  # B x C x W x H
 
-            T_opt, failed = opt(dict(
-                p3D=p3D_ref, F_ref=F_ref, F_q=F_q, T_init=T_init, cam_q=cam_q,
-                mask=mask, W_ref_q=W_ref_q))
+            if opt_flag or share_weight:
+                T_opt, failed = opt(dict(
+                    p3D=p3D_ref, F_ref=F_ref, F_q=F_q, T_init=T_init, cam_q=cam_q,
+                    mask=mask, W_ref_q=W_ref_q))
+            else:
+                T_opt = T_init.detach().clone()
 
             pred['T_r2q_init'].append(T_init)
             pred['T_r2q_opt'].append(T_opt)
