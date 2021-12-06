@@ -120,6 +120,17 @@ def pack_lr_parameters(params, base_lr, lr_scaling):
                  for scale, ps in scale2params.items()]
     return lr_params
 
+def linear_annealing(init, fin, step, start_step=2000, end_step=6000):
+    assert fin > init
+    assert end_step > start_step
+    if step < start_step:
+        return init
+    if step > end_step:
+        return fin
+
+    delta = fin - init
+    annealed = min(init + dalta * (step - start_step) / (end_step - start_step), fin)
+    return annealed
 
 def training(rank, conf, output_dir, args):
     if args.restore:
@@ -280,7 +291,11 @@ def training(rank, conf, output_dir, args):
             data = batch_to_device(data, device, non_blocking=True)
             pred = model(data)
             losses = loss_fn(pred, data)
-            loss = torch.mean(losses['total'])
+
+            # combine total loss(RT) & L1 loss, add by shan # temp !!!!!!!!!!!!!
+            annealed = linear_annealing(0, 1, it, start_step=10000, end_step=30000)
+            loss = annealed * torch.mean(losses['total']) + torch.mean(losses['L1_loss'])
+            #loss = torch.mean(losses['total'])
 
             do_backward = loss.requires_grad
             if args.distributed:
@@ -414,4 +429,5 @@ if __name__ == '__main__':
             main_worker, nprocs=args.n_gpus,
             args=(conf, output_dir, args))
     else:
+        os.environ["CUDA_VISIBLE_DEVICES"] = '0'
         main_worker(0, conf, output_dir, args)
