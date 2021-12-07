@@ -65,7 +65,7 @@ class TwoViewRefiner(BaseModel):
             raise ValueError('This entry has been deprecated. Please instead '
                              'use the `init_pose` config of the dataloader.')
 
-    def _forward(self, data, opt_flag=True):
+    def _forward(self, data):
         def process_siamese(data_i):
             pred_i = self.extractor(data_i)
             pred_i['camera_pyr'] = [data_i['camera'].scale(1/s)
@@ -118,7 +118,7 @@ class TwoViewRefiner(BaseModel):
                 F_ref = nnF.normalize(F_ref, dim=2)  # B x N x C
                 F_q = nnF.normalize(F_q, dim=1)  # B x C x W x H
 
-            if opt_flag or share_weight:
+            if data['opt_flag'] or share_weight:
                 T_opt, failed = opt(dict(
                     p3D=p3D_ref, F_ref=F_ref, F_q=F_q, T_init=T_init, cam_q=cam_q,
                     mask=mask, W_ref_q=W_ref_q))

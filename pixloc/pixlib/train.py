@@ -288,16 +288,19 @@ def training(rank, conf, output_dir, args):
 
             model.train()
             optimizer.zero_grad()
-            data = batch_to_device(data, device, non_blocking=True)
+
+
 
             # combine total loss(RT) & L1 loss, add by shan # temp !!!!!!!!!!!!!
             annealed = linear_annealing(0, 1, it, start_step=len(train_loader)*16, end_step=len(train_loader)*(16+2))
             if annealed == 0:
-                opt_flag = False
+                data['opt_flag'] = False
             else:
-                opt_flag = True
+                data['opt_flag'] = True
 
-            pred = model(data, opt_flag)
+
+            data = batch_to_device(data, device, non_blocking=True)
+            pred = model(data)
             losses = loss_fn(pred, data)
 
             loss = annealed * torch.mean(losses['total']) + torch.mean(losses['L1_loss']) # total is total of opt RT losses
