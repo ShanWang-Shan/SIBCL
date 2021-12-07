@@ -107,11 +107,11 @@ class BaseDataset(metaclass=ABCMeta):
         which can be `'train'`, `'val'`, or `'test'`.
     """
     base_default_conf = {
-        'name': '???',
-        'num_workers': '???',
-        'train_batch_size': '???',
-        'val_batch_size': '???',
-        'test_batch_size': '???',
+        'name': 'kitti',
+        'num_workers': 0,
+        'train_batch_size': 1,
+        'val_batch_size': 1,
+        'test_batch_size': 1,
         'shuffle_training': True,
         'batch_size': 1,
         'num_threads': 1,
