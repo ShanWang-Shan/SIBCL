@@ -171,12 +171,12 @@ def training(rank, conf, output_dir, args):
         logger.info(f'Training in distributed mode with {args.n_gpus} GPUs')
         assert torch.cuda.is_available()
         device = rank
-        lock = Path(os.getcwd(),
-                    f'distributed_lock_{os.getenv("LSB_JOBID", 0)}')
-        assert not Path(lock).exists(), lock
+        # lock = Path(os.getcwd(),
+        #             f'distributed_lock_{os.getenv("LSB_JOBID", 0)}')
+        # assert not Path(lock).exists(), lock
         torch.distributed.init_process_group(
-                backend='nccl', world_size=args.n_gpus, rank=device,
-                init_method='file://'+str(lock))
+                backend='nccl', world_size=args.n_gpus, rank=device)
+                #,init_method='file://'+str(lock))
         torch.cuda.set_device(device)
 
         # adjust batch size and num of workers since these are per GPU
@@ -432,6 +432,8 @@ if __name__ == '__main__':
     if args.distributed:
         args.n_gpus = 4 #torch.cuda.device_count()
         os.environ["CUDA_VISIBLE_DEVICES"] = '0,1,2,3'
+        os.environ["MASTER_ADDR"] = 'localhost'
+        os.environ["MASTER_PORT"] = 1250
         torch.multiprocessing.spawn(
             main_worker, nprocs=args.n_gpus,
             args=(conf, output_dir, args))
