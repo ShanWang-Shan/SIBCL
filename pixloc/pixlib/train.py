@@ -433,7 +433,7 @@ if __name__ == '__main__':
         args.n_gpus = 4 #torch.cuda.device_count()
         os.environ["CUDA_VISIBLE_DEVICES"] = '0,1,2,3'
         os.environ["MASTER_ADDR"] = 'localhost'
-        os.environ["MASTER_PORT"] = 1250
+        os.environ["MASTER_PORT"] = '1250'
         torch.multiprocessing.spawn(
             main_worker, nprocs=args.n_gpus,
             args=(conf, output_dir, args))
