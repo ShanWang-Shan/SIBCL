@@ -118,12 +118,12 @@ class TwoViewRefiner(BaseModel):
                 F_ref = nnF.normalize(F_ref, dim=2)  # B x N x C
                 F_q = nnF.normalize(F_q, dim=1)  # B x C x W x H
 
-            if data['opt_flag'] or share_weight:
+            if share_weight:
                 T_opt, failed = opt(dict(
                     p3D=p3D_ref, F_ref=F_ref, F_q=F_q, T_init=T_init, cam_q=cam_q,
                     mask=mask, W_ref_q=W_ref_q))
             else:
-                T_opt = T_init.detach().clone()
+                T_opt = T_init.detach()
 
             pred['T_r2q_init'].append(T_init)
             pred['T_r2q_opt'].append(T_opt)
