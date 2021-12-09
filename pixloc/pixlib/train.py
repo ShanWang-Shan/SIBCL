@@ -293,7 +293,7 @@ def training(rank, conf, output_dir, args):
             losses = loss_fn(pred, data)
 
             # combine total loss(RT) & L1 loss, add by shan # temp !!!!!!!!!!!!!
-            annealed = linear_annealing(0, 1, tot_it, start_step=len(train_loader)*14, end_step=len(train_loader)*(14+2))
+            annealed = linear_annealing(0, 1, tot_it, start_step=len(train_loader)*13, end_step=len(train_loader)*(13+2))
             loss = annealed * torch.mean(losses['total']) + torch.mean(losses['L1_loss']) # total is total of opt RT losses
             #loss = torch.mean(losses['total'])
 
@@ -408,7 +408,7 @@ if __name__ == '__main__':
     parser.add_argument('--overfit', action='store_true', default=False)
     parser.add_argument('--restore', action='store_true', default=True)
     parser.add_argument('--distributed', action='store_true',default=False)
-    parser.add_argument('--dotlist', nargs='*', default=["data.name=kitti","data.max_num_points3D=10000","data.force_num_points3D=False",
+    parser.add_argument('--dotlist', nargs='*', default=["data.name=kitti","data.max_num_points3D=512","data.force_num_points3D=False",
                                                          "data.num_workers=0","data.batch_size=1","train.eval_every_iter=10000"])
     args = parser.parse_intermixed_args()
 
