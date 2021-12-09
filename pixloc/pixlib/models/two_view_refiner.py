@@ -46,7 +46,7 @@ class TwoViewRefiner(BaseModel):
         self.extractor = get_model(conf.extractor.name)(conf.extractor)
         assert hasattr(self.extractor, 'scales')
         if not share_weight:
-            self.extractor_sat = deepcopy(self.extractor) # add by shan
+            self.extractor_sat = get_model(conf.extractor.name)(conf.extractor) # add by shan
 
         Opt = get_model(conf.optimizer.name)
         if conf.duplicate_optimizer_per_scale:
