@@ -407,8 +407,8 @@ if __name__ == '__main__':
     parser.add_argument('--conf', type=str)
     parser.add_argument('--overfit', action='store_true', default=False)
     parser.add_argument('--restore', action='store_true', default=True)
-    parser.add_argument('--distributed', action='store_true',default=False)
-    parser.add_argument('--dotlist', nargs='*', default=["data.name=kitti","data.max_num_points3D=512","data.force_num_points3D=False",
+    parser.add_argument('--distributed', action='store_true',default=True)
+    parser.add_argument('--dotlist', nargs='*', default=["data.name=kitti","data.max_num_points3D=10000","data.force_num_points3D=False",
                                                          "data.num_workers=0","data.batch_size=1","train.eval_every_iter=10000"])
     args = parser.parse_intermixed_args()
 
@@ -426,7 +426,7 @@ if __name__ == '__main__':
 
     if args.distributed:
         args.n_gpus = 4 #torch.cuda.device_count()
-        os.environ["CUDA_VISIBLE_DEVICES"] = '0,1,2,3'
+        os.environ["CUDA_VISIBLE_DEVICES"] = '1,2,3,4'
         os.environ["MASTER_ADDR"] = 'localhost'
         os.environ["MASTER_PORT"] = '1250'
         torch.multiprocessing.spawn(
