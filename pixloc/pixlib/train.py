@@ -78,8 +78,8 @@ def do_evaluation(model, loader, device, loss_fn, metrics_fn, conf, pbar=True):
             results[k].update(v)
             if k in conf.median_metrics:
                 results[k+'_median'].update(v)
-    print('acc:', acc / total)
     results = {k: results[k].compute() for k in results}
+    results['acc'] = acc / total
     return results
 
 
@@ -171,12 +171,12 @@ def training(rank, conf, output_dir, args):
         logger.info(f'Training in distributed mode with {args.n_gpus} GPUs')
         assert torch.cuda.is_available()
         device = rank
-        # lock = Path(os.getcwd(),
-        #             f'distributed_lock_{os.getenv("LSB_JOBID", 0)}')
-        # assert not Path(lock).exists(), lock
+        lock = Path(os.getcwd(),
+                    f'distributed_lock_{os.getenv("LSB_JOBID", 0)}')
+        assert not Path(lock).exists(), lock
         torch.distributed.init_process_group(
-                backend='nccl', world_size=args.n_gpus, rank=device)
-                #,init_method='file://'+str(lock))
+                backend='nccl', world_size=args.n_gpus, rank=device,
+                init_method='file://'+str(lock))
         torch.cuda.set_device(device)
 
         # adjust batch size and num of workers since these are per GPU
@@ -293,7 +293,7 @@ def training(rank, conf, output_dir, args):
             losses = loss_fn(pred, data)
 
             # combine total loss(RT) & L1 loss, add by shan # temp !!!!!!!!!!!!!
-            annealed = linear_annealing(0, 1, tot_it, start_step=len(train_loader)*13, end_step=len(train_loader)*(13+2))
+            annealed = linear_annealing(0, 1, tot_it, start_step=len(train_loader)*13, end_step=len(train_loader)*(13+1))
             loss = annealed * torch.mean(losses['total']) + torch.mean(losses['L1_loss']) # total is total of opt RT losses
             #loss = torch.mean(losses['total'])
 
@@ -426,7 +426,7 @@ if __name__ == '__main__':
 
     if args.distributed:
         args.n_gpus = 4 #torch.cuda.device_count()
-        os.environ["CUDA_VISIBLE_DEVICES"] = '1,2,3,4'
+        os.environ["CUDA_VISIBLE_DEVICES"] = '0,1,2,3'
         os.environ["MASTER_ADDR"] = 'localhost'
         os.environ["MASTER_PORT"] = '1250'
         torch.multiprocessing.spawn(
