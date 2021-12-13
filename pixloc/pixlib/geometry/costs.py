@@ -28,7 +28,10 @@ class DirectAbsoluteCost:
             C_ref, C_query = confidences
             C_query_p2D, _, _ = self.interpolator(
                 C_query, p2D, return_gradients=False)
-            weight = C_ref * C_query_p2D
+            if C_ref is not None:
+                weight = C_ref * C_query_p2D
+            else:
+                weight = C_query_p2D
             weight = weight.squeeze(-1).masked_fill(~valid, 0.)
         else:
             weight = None
