@@ -110,11 +110,11 @@ class TwoViewRefiner(BaseModel):
             W_ref_q = None
             if self.extractor.conf.get('compute_uncertainty', False):
                 W_q = pred['query']['confidences'][i]
-                # instead of confidence of ref, only use confidence of query
-                #W_ref = pred['ref']['confidences'][i]
-                #W_ref, _, _ = opt.interpolator(W_ref, p2D_ref)
-                #W_ref_q = (W_ref, W_q)
-                W_ref_q = (W_q, W_q)
+                # only use confidence of query, instead of confidence of ref use all 1
+                W_ref = pred['ref']['confidences'][i]
+                W_ref = torch.ones_like(W_ref) # add by shan
+                W_ref, _, _ = opt.interpolator(W_ref, p2D_ref)
+                W_ref_q = (W_ref, W_q)
 
 
             if self.conf.normalize_features:
