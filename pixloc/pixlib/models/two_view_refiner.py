@@ -45,8 +45,8 @@ class TwoViewRefiner(BaseModel):
     def _init(self, conf):
         self.extractor = get_model(conf.extractor.name)(conf.extractor)
         assert hasattr(self.extractor, 'scales')
-        if not share_weight:
-            self.extractor_sat = get_model(conf.extractor.name)(conf.extractor) # add by shan
+        # if not share_weight:
+        #     self.extractor_sat = deepcopy(self.extractor) # add by shan
 
         Opt = get_model(conf.optimizer.name)
         if conf.duplicate_optimizer_per_scale:
@@ -109,19 +109,22 @@ class TwoViewRefiner(BaseModel):
 
             W_ref_q = None
             if self.extractor.conf.get('compute_uncertainty', False):
-                W_ref = pred['ref']['confidences'][i]
                 W_q = pred['query']['confidences'][i]
-                W_ref, _, _ = opt.interpolator(W_ref, p2D_ref)
-                W_ref_q = (W_ref, W_q)
+                # instead of confidence of ref, only use confidence of query
+                #W_ref = pred['ref']['confidences'][i]
+                #W_ref, _, _ = opt.interpolator(W_ref, p2D_ref)
+                #W_ref_q = (W_ref, W_q)
+                W_ref_q = (W_q, W_q)
+
 
             if self.conf.normalize_features:
                 F_ref = nnF.normalize(F_ref, dim=2)  # B x N x C
                 F_q = nnF.normalize(F_q, dim=1)  # B x C x W x H
 
-            T_opt, failed = opt(dict(
-                    p3D=p3D_ref, F_ref=F_ref, F_q=F_q, T_init=T_init, cam_q=cam_q,
-                    mask=mask, W_ref_q=W_ref_q))
-            #T_opt = T_init.detach()
+            # T_opt, failed = opt(dict(
+            #         p3D=p3D_ref, F_ref=F_ref, F_q=F_q, T_init=T_init, cam_q=cam_q,
+            #         mask=mask, W_ref_q=W_ref_q))
+            T_opt = T_init.detach()
 
             pred['T_r2q_init'].append(T_init)
             pred['T_r2q_opt'].append(T_opt)

@@ -227,12 +227,12 @@ def training(rank, conf, output_dir, args):
     if init_cp is not None:
         model.load_state_dict(init_cp['model'])
 
-        # #fix parameter for sat training
-        # for param in model.extractor.parameters():
-        #     param.requires_grad = False
+        #fix parameter for sat training
+        for param in model.extractor.parameters():
+            param.requires_grad = False
 
-    # # add satellite extractor
-    # model.add_sat_extractor()
+    # add satellite extractor
+    model.add_sat_extractor()
 
     if args.distributed:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
@@ -299,9 +299,10 @@ def training(rank, conf, output_dir, args):
             losses = loss_fn(pred, data)
 
             # combine total loss(RT) & L1 loss, add by shan # temp !!!!!!!!!!!!!
-            annealed = linear_annealing(0, 1, tot_it, start_step=len(train_loader)*13, end_step=len(train_loader)*(13+1))
-            loss = annealed * torch.mean(losses['total']) + torch.mean(losses['L1_loss']) # total is total of opt RT losses
+            # annealed = linear_annealing(0, 1, tot_it, start_step=len(train_loader)*13, end_step=len(train_loader)*(13+1))
+            # loss = annealed * torch.mean(losses['total']) + torch.mean(losses['L1_loss']) # total is total of opt RT losses
             #loss = torch.mean(losses['total'])
+            loss = torch.mean(losses['L1_loss'])
 
             do_backward = loss.requires_grad
             if args.distributed:
