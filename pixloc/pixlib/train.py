@@ -170,13 +170,18 @@ def training(rank, conf, output_dir, args):
     if args.distributed:
         logger.info(f'Training in distributed mode with {args.n_gpus} GPUs')
         assert torch.cuda.is_available()
+        #torch.distributed.init_process_group(
+        #        backend='nccl', world_size=args.n_gpus, rank=rank,
+        #        init_method= 'env://') 
+
+        # 1 gpu 1 progress
         device = rank
-        #lock = Path(os.getcwd(),
-        #            f'distributed_lock_{os.getenv("LSB_JOBID", 0)}')
-        #assert not Path(lock).exists(), lock
+        lock = Path(os.getcwd(),
+                    f'distributed_lock_{os.getenv("LSB_JOBID", device)}')
+        assert not Path(lock).exists(), lock
         torch.distributed.init_process_group(
                 backend='nccl', world_size=args.n_gpus, rank=device,
-                init_method='env://') # 'file://'+str(lock))
+                init_method= 'file://'+str(lock)) 
         torch.cuda.set_device(device)
 
         # adjust batch size and num of workers since these are per GPU
@@ -233,7 +238,7 @@ def training(rank, conf, output_dir, args):
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
         model = torch.nn.parallel.DistributedDataParallel(
             model, device_ids=[device], find_unused_parameters=True)
-        model._set_static_graph() # add by shan
+        #model._set_static_graph() # add by shan
     if rank == 0:
         logger.info(f'Model: \n{model}')
     torch.backends.cudnn.benchmark = True
@@ -265,7 +270,7 @@ def training(rank, conf, output_dir, args):
             raise ValueError(conf.train.lr_schedule.type)
     lr_scheduler = torch.optim.lr_scheduler.MultiplicativeLR(optimizer, lr_fn)
     if args.restore:
-        optimizer.load_state_dict(init_cp['optimizer']) # delte because para not same after add satellite feature extractor
+        #optimizer.load_state_dict(init_cp['optimizer']) # delte because para not same after add satellite feature extractor
         if 'lr_scheduler' in init_cp:
             lr_scheduler.load_state_dict(init_cp['lr_scheduler'])
 
@@ -408,9 +413,9 @@ if __name__ == '__main__':
     parser.add_argument('--conf', type=str)
     parser.add_argument('--overfit', action='store_true', default=False)
     parser.add_argument('--restore', action='store_true', default=True)
-    parser.add_argument('--distributed', action='store_true',default=False)
+    parser.add_argument('--distributed', action='store_true',default=True)
     parser.add_argument('--dotlist', nargs='*', default=["data.name=kitti","data.max_num_points3D=10000","data.force_num_points3D=False",
-                                                         "data.num_workers=0","data.batch_size=1","train.eval_every_iter=10000","train.lr=1e-3","optimizer.num_iters=4"])
+                                                         "data.num_workers=0","data.batch_size=1","train.eval_every_iter=10000","train.lr=1e-3","optimizer.num_iters=5"])
     args = parser.parse_intermixed_args()
 
     logger.info(f'Starting experiment {args.experiment}')
@@ -426,10 +431,15 @@ if __name__ == '__main__':
         OmegaConf.save(conf, str(output_dir / 'config.yaml'))
 
     if args.distributed:
-        args.n_gpus = 4 #torch.cuda.device_count()
-        os.environ["CUDA_VISIBLE_DEVICES"] = '0,1,2,3'
+        args.n_gpus = 2 #torch.cuda.device_count()
+        os.environ["CUDA_VISIBLE_DEVICES"] = '0,1'
         os.environ["MASTER_ADDR"] = 'localhost'
         os.environ["MASTER_PORT"] = '1250'
+        # 1 process n gpu
+        #torch.multiprocessing.spawn(
+        #    main_worker, nprocs=1, join=True, daemon=False,
+        #    args=(conf, output_dir, args))
+        # 1 process 1 gpu
         torch.multiprocessing.spawn(
             main_worker, nprocs=args.n_gpus,
             args=(conf, output_dir, args))
