@@ -88,6 +88,11 @@ class TwoViewRefiner(BaseModel):
             pred = {i: process_siamese(data[i]) for i in ['query']}
             pred.update({i: process_sat(data[i]) for i in ['ref']})
 
+        # debug original image
+        if 1:
+            pred['ref']['feature_maps'][0] = data['ref']['image']
+            pred['query']['feature_maps'][0] = data['query']['image']
+
         p3D_ref = data['ref']['points3D']
         T_init = data['T_r2q_init']
 
@@ -140,15 +145,12 @@ class TwoViewRefiner(BaseModel):
 
             # add by shan, query & reprojection GT error, for query unet back propogate
             if not share_weight:
-                loss = self.preject_l1loss(opt, p3D_ref, F_ref, F_q, data['T_r2q_gt'], cam_q, mask=mask) #, W_ref_query=W_ref_q) # no confidence for L1 loss
+                loss = self.preject_l1loss(opt, p3D_ref, F_ref, F_q, data['T_r2q_gt'], cam_q, mask=mask, W_ref_query=W_ref_q)
                 pred['L1_loss'].append(loss)
 
         return pred
 
     def preject_l1loss(self, opt, p3D, F_ref, F_query, T_gt, camera, mask=None, W_ref_query= None):
-        F_ref = torch.nn.functional.normalize(F_ref, dim=-1)
-        F_query = torch.nn.functional.normalize(F_query, dim=-1)
-
         args = (camera, p3D, F_ref, F_query, W_ref_query)
         res, valid, w_unc, _, _ = opt.cost_fn.residuals(T_gt, *args)
         if mask is not None:
@@ -159,6 +161,7 @@ class TwoViewRefiner(BaseModel):
         cost, w_loss, _ = opt.loss_fn(cost)
         loss = w_loss * valid.float()
         if w_unc is not None:
+            # nomalize w_unc ??
             loss *= w_unc
 
         return torch.sum(loss,dim=-1)
