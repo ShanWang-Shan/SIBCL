@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 # add by shan
 share_weight = False
+cal_confidence = 2 # 0: no confidence, 1:only query 2: both query and ref
+no_opt = True
 
 class TwoViewRefiner(BaseModel):
     default_conf = {
@@ -45,8 +47,8 @@ class TwoViewRefiner(BaseModel):
     def _init(self, conf):
         self.extractor = get_model(conf.extractor.name)(conf.extractor)
         assert hasattr(self.extractor, 'scales')
-        # if not share_weight:
-        #     self.extractor_sat = deepcopy(self.extractor) # add by shan
+        if not share_weight:
+            self.extractor_sat = deepcopy(self.extractor) # add by shan
 
         Opt = get_model(conf.optimizer.name)
         if conf.duplicate_optimizer_per_scale:
@@ -108,24 +110,29 @@ class TwoViewRefiner(BaseModel):
             mask &= visible
 
             W_ref_q = None
-            if self.extractor.conf.get('compute_uncertainty', False):
+            if cal_confidence != 0 and self.extractor.conf.get('compute_uncertainty', False):
+            #if self.extractor.conf.get('compute_uncertainty', False):
                 W_q = pred['query']['confidences'][i]
                 # only use confidence of query, instead of confidence of ref use None
-                W_ref = pred['ref']['confidences'][i]
-                #W_ref = torch.ones_like(W_ref) # add by shan
-                W_ref, _, _ = opt.interpolator(W_ref, p2D_ref)
-                #W_ref_q = (W_ref, W_q)
-                W_ref_q = (None, W_q)
+                if cal_confidence == 1:
+                    W_ref_q = (None, W_q)
+                else:
+                    W_ref = pred['ref']['confidences'][i]
+                    W_ref, _, _ = opt.interpolator(W_ref, p2D_ref)
+                    W_ref_q = (W_ref, W_q)
 
 
             if self.conf.normalize_features:
                 F_ref = nnF.normalize(F_ref, dim=2)  # B x N x C
                 F_q = nnF.normalize(F_q, dim=1)  # B x C x W x H
 
-            # T_opt, failed = opt(dict(
-            #         p3D=p3D_ref, F_ref=F_ref, F_q=F_q, T_init=T_init, cam_q=cam_q,
-            #         mask=mask, W_ref_q=W_ref_q))
-            T_opt = T_init.detach()
+
+            if no_opt:
+                T_opt = T_init.detach()
+            else:
+                T_opt, failed = opt(dict(
+                    p3D=p3D_ref, F_ref=F_ref, F_q=F_q, T_init=T_init, cam_q=cam_q,
+                    mask=mask, W_ref_q=W_ref_q))
 
             pred['T_r2q_init'].append(T_init)
             pred['T_r2q_opt'].append(T_opt)
@@ -133,7 +140,7 @@ class TwoViewRefiner(BaseModel):
 
             # add by shan, query & reprojection GT error, for query unet back propogate
             if not share_weight:
-                loss = self.preject_l1loss(opt, p3D_ref, F_ref, F_q, data['T_r2q_gt'], cam_q, mask=mask, W_ref_query=W_ref_q)
+                loss = self.preject_l1loss(opt, p3D_ref, F_ref, F_q, data['T_r2q_gt'], cam_q, mask=mask) #, W_ref_query=W_ref_q) # no confidence for L1 loss
                 pred['L1_loss'].append(loss)
 
         return pred
