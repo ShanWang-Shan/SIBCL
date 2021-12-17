@@ -14,6 +14,11 @@ from pixloc.pixlib.models import get_model
 from pixloc.pixlib.models.utils import masked_mean
 from pixloc.pixlib.geometry.losses import scaled_barron
 
+from matplotlib import pyplot as plt
+from torchvision import transforms
+import cv2
+
+
 logger = logging.getLogger(__name__)
 
 # add by shan
@@ -89,9 +94,45 @@ class TwoViewRefiner(BaseModel):
             pred.update({i: process_sat(data[i]) for i in ['ref']})
 
         # debug original image
-        if 1:
+        if 0:
             pred['ref']['feature_maps'][0] = data['ref']['image']
             pred['query']['feature_maps'][0] = data['query']['image']
+
+            fig = plt.figure(figsize=plt.figaspect(0.5))
+            ax1 = fig.add_subplot(2, 2, 1)
+            ax2 = fig.add_subplot(2, 2, 2)
+            ax3 = fig.add_subplot(2, 2, 3)
+            ax4 = fig.add_subplot(2, 2, 4)
+            color_image0 = transforms.functional.to_pil_image(data['query']['image'][0], mode='RGB')
+            color_image0 = np.array(color_image0)
+            color_image1 = transforms.functional.to_pil_image(data['ref']['image'][0], mode='RGB')
+            color_image1 = np.array(color_image1)
+
+            p2D_ref, visible = pred['ref']['camera_pyr'][0].world2image(data['ref']['points3D'])
+            F_ref, mask, _ = self.optimizer[0].interpolator(data['ref']['image'], p2D_ref)
+            color_image3 = transforms.functional.to_pil_image(F_ref.permute(0,2,1).view(3,100,100), mode='RGB')
+            color_image3 = np.array(color_image3)
+            p2D_ref = p2D_ref.cpu().detach()
+            for j in range(p2D_ref.shape[1]):
+                cv2.circle(color_image1, (np.int32(p2D_ref[0][j][0]), np.int32(p2D_ref[0][j][1])), 2, (255, 0, 0),
+                           -1)
+
+            p3D_q = data['T_r2q_gt'] * data['ref']['points3D']
+            p2D, visible = pred['query']['camera_pyr'][0].world2image(p3D_q)
+            F_p2D_raw, _, _ = self.optimizer[0].interpolator(data['query']['image'], p2D, return_gradients=False)
+            color_image2 = transforms.functional.to_pil_image(F_p2D_raw.permute(0,2,1).view(3,100,100), mode='RGB')
+            color_image2 = np.array(color_image2)
+            p2D = p2D.cpu().detach()
+            #valid = valid & visible
+            for j in range(p2D.shape[1]):
+                cv2.circle(color_image0, (np.int32(p2D[0][j][0]), np.int32(p2D[0][j][1])), 2, (255, 0, 0),
+                           -1)
+
+            ax1.imshow(color_image0)
+            ax2.imshow(color_image1)
+            ax3.imshow(color_image2)
+            ax4.imshow(color_image3)
+            plt.show()
 
         p3D_ref = data['ref']['points3D']
         T_init = data['T_r2q_init']
@@ -161,7 +202,6 @@ class TwoViewRefiner(BaseModel):
         cost, w_loss, _ = opt.loss_fn(cost)
         loss = w_loss * valid.float()
         if w_unc is not None:
-            # nomalize w_unc ??
             loss *= w_unc
 
         return torch.sum(loss,dim=-1)
