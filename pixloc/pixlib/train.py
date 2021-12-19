@@ -227,9 +227,11 @@ def training(rank, conf, output_dir, args):
     if init_cp is not None:
         model.load_state_dict(init_cp['model'])
 
-        ##fix parameter for sat training
-        #for param in model.extractor.parameters():
-        #    param.requires_grad = False
+        #fix parameter for sat training
+        for param in model.extractor.parameters():
+           param.requires_grad = True
+        for param in model.extractor_sat.parameters():
+           param.requires_grad = True
 
     # add satellite extractor
     #model.add_sat_extractor()
