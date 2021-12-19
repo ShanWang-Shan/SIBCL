@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 share_weight = False
 cal_confidence = 2 # 0: no confidence, 1:only query 2: both query and ref
 no_opt = False
+l1_loss = True
 
 class TwoViewRefiner(BaseModel):
     default_conf = {
@@ -185,7 +186,7 @@ class TwoViewRefiner(BaseModel):
             T_init = T_opt.detach()
 
             # add by shan, query & reprojection GT error, for query unet back propogate
-            if not share_weight:
+            if l1_loss and not share_weight:
                 loss = self.preject_l1loss(opt, p3D_ref, F_ref, F_q, data['T_r2q_gt'], cam_q, mask=mask, W_ref_query=W_ref_q)
                 pred['L1_loss'].append(loss)
 
@@ -258,8 +259,10 @@ class TwoViewRefiner(BaseModel):
         losses['reprojection_error/init'] = err_init
 
         # add by shan, query & reprojection GT error, for query unet back propogate
-        if not share_weight:
+        if l1_loss and not share_weight:
             losses['L1_loss'] = sum(pred['L1_loss'])/num_scales
+        else:
+            losses['L1_loss'] = torch.tensor(0.)
 
         return losses
 

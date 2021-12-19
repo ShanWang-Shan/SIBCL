@@ -270,7 +270,7 @@ def training(rank, conf, output_dir, args):
             raise ValueError(conf.train.lr_schedule.type)
     lr_scheduler = torch.optim.lr_scheduler.MultiplicativeLR(optimizer, lr_fn)
     if args.restore:
-        #optimizer.load_state_dict(init_cp['optimizer']) # delte because para not same after add satellite feature extractor
+        optimizer.load_state_dict(init_cp['optimizer']) # delte because para not same after add satellite feature extractor
         if 'lr_scheduler' in init_cp:
             lr_scheduler.load_state_dict(init_cp['lr_scheduler'])
 
@@ -302,7 +302,8 @@ def training(rank, conf, output_dir, args):
             # annealed = linear_annealing(0, 1, tot_it, start_step=len(train_loader)*13, end_step=len(train_loader)*(13+1))
             # loss = annealed * torch.mean(losses['total']) + torch.mean(losses['L1_loss']) # total is total of opt RT losses
             #loss = torch.mean(losses['total'])
-            loss = torch.mean(losses['L1_loss'])
+            #loss = torch.mean(losses['L1_loss'])
+            loss = torch.mean(losses['total']) + torch.mean(losses['L1_loss'])  # total is total of opt RT losses
 
             do_backward = loss.requires_grad
             if args.distributed:
