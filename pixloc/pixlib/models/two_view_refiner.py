@@ -203,7 +203,7 @@ class TwoViewRefiner(BaseModel):
         cost, w_loss, _ = opt.loss_fn(cost)
         loss = w_loss * valid.float()
         if w_unc is not None:
-            loss *= w_unc
+            loss = loss * w_unc
 
         return torch.sum(loss,dim=-1)
 
