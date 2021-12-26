@@ -176,12 +176,12 @@ def training(rank, conf, output_dir, args):
 
         # 1 gpu 1 progress
         device = rank
-        lock = Path(os.getcwd(),
-                    f'distributed_lock_{os.getenv("LSB_JOBID", device)}')
-        assert not Path(lock).exists(), lock
+        # lock = Path(os.getcwd(),
+        #             f'distributed_lock_{os.getenv("LSB_JOBID", device)}')
+        # assert not Path(lock).exists(), lock
         torch.distributed.init_process_group(
                 backend='nccl', world_size=args.n_gpus, rank=device,
-                init_method= 'file://'+str(lock)) 
+                init_method= 'file://'+str(args.lock_file))
         torch.cuda.set_device(device)
 
         # adjust batch size and num of workers since these are per GPU
@@ -352,6 +352,10 @@ def training(rank, conf, output_dir, args):
 
             del pred, data, loss, losses
 
+            if it > 5000: # for test
+                stop = True
+                break
+
             results = 0
             if (stop or it == (len(train_loader) - 1)):
             # if (((it % conf.train.eval_every_iter == 0) and it!=0) or stop
@@ -417,7 +421,7 @@ if __name__ == '__main__':
     parser.add_argument('--conf', type=str)
     parser.add_argument('--overfit', action='store_true', default=False)
     parser.add_argument('--restore', action='store_true', default=True)
-    parser.add_argument('--distributed', action='store_true',default=False)
+    parser.add_argument('--distributed', action='store_true',default=True)
     parser.add_argument('--dotlist', nargs='*', default=["data.name=kitti","data.max_num_points3D=10000","data.force_num_points3D=False",
                                                          "data.num_workers=0","data.batch_size=1","train.eval_every_iter=10000","train.lr=1e-3","optimizer.num_iters=5"])
     args = parser.parse_intermixed_args()
@@ -436,9 +440,14 @@ if __name__ == '__main__':
 
     if args.distributed:
         args.n_gpus = 2 #torch.cuda.device_count()
-        os.environ["CUDA_VISIBLE_DEVICES"] = '0,1'
+        os.environ["CUDA_VISIBLE_DEVICES"] = '0,7'
         os.environ["MASTER_ADDR"] = 'localhost'
         os.environ["MASTER_PORT"] = '1250'
+
+        args.lock_file = output_dir / "distributed_lock"
+        if args.lock_file.exists():
+            args.lock_file.unlink()
+
         # 1 process n gpu
         #torch.multiprocessing.spawn(
         #    main_worker, nprocs=1, join=True, daemon=False,
