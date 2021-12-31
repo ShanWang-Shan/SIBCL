@@ -222,8 +222,8 @@ class TwoViewRefiner(BaseModel):
     # add by shan for satellite image extractor
     def add_sat_extractor(self):
         self.extractor_sat = deepcopy(self.extractor)
-        for param in self.extractor_sat.parameters():
-            param.requires_grad = True
+        #for param in self.extractor_sat.parameters():
+        #    param.requires_grad = True
 
     def loss(self, pred, data):
         cam_ref = data['ref']['camera']

@@ -228,10 +228,10 @@ def training(rank, conf, output_dir, args):
         model.load_state_dict(init_cp['model'])
 
         #fix parameter for sat training
-        for param in model.extractor.parameters():
-           param.requires_grad = True
-        for param in model.extractor_sat.parameters():
-           param.requires_grad = True
+        #for param in model.extractor.parameters():
+        #   param.requires_grad = True
+        #for param in model.extractor_sat.parameters():
+        #   param.requires_grad = True
 
     # add satellite extractor
     #model.add_sat_extractor()
@@ -439,8 +439,8 @@ if __name__ == '__main__':
         OmegaConf.save(conf, str(output_dir / 'config.yaml'))
 
     if args.distributed:
-        args.n_gpus = 2 #torch.cuda.device_count()
-        os.environ["CUDA_VISIBLE_DEVICES"] = '0,7'
+        args.n_gpus = 8 #torch.cuda.device_count()
+        os.environ["CUDA_VISIBLE_DEVICES"] = '0,1,2,3,4,5,6,7'
         os.environ["MASTER_ADDR"] = 'localhost'
         os.environ["MASTER_PORT"] = '1250'
 
