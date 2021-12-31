@@ -202,7 +202,13 @@ class _Dataset(Dataset):
             lines = txt_f.readlines()
             for line in lines:
                 line = line.strip()
-                self.file_name.append(line)
+                velodyne_file_name = os.path.join(self.root, grdimage_dir, line[:38], vel_dir,
+                                                  line[38:].lower().replace('.png', '.bin'))
+                if not os.path.exists(velodyne_file_name):
+                    # ignore frames with out velodyne
+                    print(velodyne_file_name + ' do not exist!!!')
+                else:
+                    self.file_name.append(line)
 
         #self.file_name = []
         # test_df = pd.read_csv(os.path.join(self.root, test_csv_file_name))
