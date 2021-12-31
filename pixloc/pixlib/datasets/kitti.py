@@ -199,8 +199,10 @@ class _Dataset(Dataset):
         self.file_name = []
         txt_file_name = os.path.join(self.root, grdimage_dir, 'kitti_split', split+'_files.txt')
         with open(txt_file_name, "r") as txt_f:
-            line = txt_f.readline().strip()
-            self.file_name.append(line)
+            lines = txt_f.readlines()
+            for line in lines:
+                line = line.strip()
+                self.file_name.append(line)
 
         #self.file_name = []
         # test_df = pd.read_csv(os.path.join(self.root, test_csv_file_name))
