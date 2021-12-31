@@ -68,8 +68,11 @@ class Logger:
             self.costs.append([])
         self.costs[-1].append(args['cost'].mean(-1).cpu().numpy())
         self.dt.append(args['T_delta'].magnitude()[1].cpu().numpy())
-        # p2D, valid = data_['query']['camera'].world2image(args['T'] * data_['ref']['points3D'])
-        # self.p2D_trajectory.append((p2D[0].cpu().numpy(), valid[0].cpu().numpy()))
+        p2D, valid = self.data['ref']['camera'].world2image(args['T'] * self.data['query']['points3D'])
+        self.p2D_trajectory.append((p2D[0].cpu().numpy(), valid[0].cpu().numpy()))
+
+    def set(self, data):
+        self.data = data
 
 
 logger = Logger(refiner.optimizer)
@@ -81,16 +84,17 @@ def Train(refiner, train_loader, val_loader, epochs, save_path):
         refiner.train()
         for _, data in zip(range(34556), train_loader):
             data_ = batch_to_device(data, device)
+            logger.set(data_)
             pred_ = refiner(data_)
             pred = map_tensor(pred_, lambda x: x[0].cpu())
             data = map_tensor(data, lambda x: x[0].cpu())
-            cam_q = data['query']['camera']
-            p3D_r = data['ref']['points3D']
+            cam_f = data['ref']['camera']
+            p3D_q = data['query']['points3D']
 
-            p2D_r, valid_r = data['ref']['camera'].world2image(p3D_r)
-            p2D_q_gt, valid_q = cam_q.world2image(data['T_r2q_gt'] * p3D_r)
-            p2D_q_init, _ = cam_q.world2image(data['T_r2q_init'] * p3D_r)
-            p2D_q_opt, _ = cam_q.world2image(pred['T_r2q_opt'][-1] * p3D_r)
+            p2D_q, valid_q = data['query']['camera'].world2image(data['query']['T_w2cam']*p3D_q)
+            p2D_r_gt, valid_r = cam_f.world2image(data['T_q2r_gt'] * p3D_q)
+            p2D_q_init, _ = cam_f.world2image(data['T_q2r_init'] * p3D_q)
+            p2D_q_opt, _ = cam_f.world2image(pred['T_q2r_opt'][-1] * p3D_q)
             valid = valid_q & valid_r
 
             losses = refiner.loss(pred_, data_)
@@ -118,18 +122,20 @@ def Train(refiner, train_loader, val_loader, epochs, save_path):
 def Val(refiner, val_loader, save_path, best_result):
     refiner.eval()
     acc = 0
+    cnt = 0
     for idx, data in zip(range(2959), val_loader):
         data_ = batch_to_device(data, device)
+        logger.set(data_)
         pred_ = refiner(data_)
         pred = map_tensor(pred_, lambda x: x[0].cpu())
         data = map_tensor(data, lambda x: x[0].cpu())
-        cam_q = data['query']['camera']
-        p3D_r = data['ref']['points3D']
+        cam_r = data['ref']['camera']
+        p3D_q = data['query']['points3D']
 
-        p2D_r, valid_r = data['ref']['camera'].world2image(p3D_r)
-        p2D_q_gt, valid_q = cam_q.world2image(data['T_r2q_gt'] * p3D_r)
-        p2D_q_init, _ = cam_q.world2image(data['T_r2q_init'] * p3D_r)
-        p2D_q_opt, _ = cam_q.world2image(pred['T_r2q_opt'][-1] * p3D_r)
+        p2D_q, valid_q = data['query']['camera'].world2image(data['query']['T_w2cam']*p3D_q)
+        p2D_r_gt, valid_r = cam_r.world2image(data['T_q2r_gt'] * p3D_q)
+        p2D_q_init, _ = cam_r.world2image(data['T_q2r_init'] * p3D_q)
+        p2D_q_opt, _ = cam_r.world2image(pred['T_q2r_opt'][-1] * p3D_q)
         valid = valid_q & valid_r
 
         losses = refiner.loss(pred_, data_)
@@ -141,6 +147,7 @@ def Val(refiner, val_loader, save_path, best_result):
 
         if mets['t_error'].item() < 1 and mets['R_error'].item() < 2:
             acc += 1
+        cnt += 1
 
         # for debug
         if 1:
@@ -148,9 +155,9 @@ def Val(refiner, val_loader, save_path, best_result):
             plot_images([imr, imq],
                         dpi=50,  # set to 100-200 for higher res
                         titles=[(data['scene'], valid_r.sum().item(), valid_q.sum().item()), errP + errt])
-            plot_keypoints([p2D_r[valid_r], p2D_q_gt[valid]], colors=[cm_RdGn(valid[valid_r]), 'lime'])
-            plot_keypoints([np.empty((0, 2)), p2D_q_init[valid]], colors='red')
-            plot_keypoints([np.empty((0, 2)), p2D_q_opt[valid]], colors='blue')
+            plot_keypoints([p2D_r_gt[valid], p2D_q[valid_q]], colors='lime') #[cm_RdGn(valid[valid_q]), 'lime'])
+            plot_keypoints([p2D_q_init[valid], np.empty((0, 2))], colors='red')
+            plot_keypoints([p2D_q_opt[valid], np.empty((0, 2))], colors='blue')
             add_text(0, 'reference')
             add_text(1, 'query')
             plt.show()
@@ -181,13 +188,14 @@ def Val(refiner, val_loader, save_path, best_result):
 
             idxs = np.random.RandomState(0).choice(np.where(valid)[0], 15, replace=False)
             colors = mpl.cm.jet(1 - np.linspace(0, 1, len(logger.p2D_trajectory)))[:, :3]
-            plot_images([imq])
-            for (p2D, valid), c in zip(logger.p2D_trajectory, colors):
+            plot_images([imr])
+            #for (p2D, valid), c in zip(logger.p2D_trajectory, colors):
+            for (p2D, _), c in zip(logger.p2D_trajectory, colors):
                 plot_keypoints([p2D[idxs]], colors=c[None])
             plt.show()
             plt.close()
 
-    acc = acc/idx
+    acc = acc/cnt
     print('acc of a epoch:#####',acc)
     if acc > best_result:
         print('best acc:@@@@@', acc)

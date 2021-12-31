@@ -104,12 +104,14 @@ class TwoViewRefiner(BaseModel):
             ax2 = fig.add_subplot(2, 2, 2)
             ax3 = fig.add_subplot(2, 2, 3)
             ax4 = fig.add_subplot(2, 2, 4)
-            color_image0 = transforms.functional.to_pil_image(data['query']['image'][0], mode='RGB')
+            color_image0 = transforms.functional.to_pil_image(data['query']['image'][0], mode='RGB') # grd
             color_image0 = np.array(color_image0)
-            color_image1 = transforms.functional.to_pil_image(data['ref']['image'][0], mode='RGB')
+            color_image1 = transforms.functional.to_pil_image(data['ref']['image'][0], mode='RGB') #sat
             color_image1 = np.array(color_image1)
 
-            p2D_ref, visible = pred['ref']['camera_pyr'][0].world2image(data['ref']['points3D'])
+            #sat
+            p3D_ref = data['T_q2r_gt'] * data['query']['points3D']
+            p2D_ref, visible = pred['ref']['camera_pyr'][0].world2image(p3D_ref)
             F_ref, mask, _ = self.optimizer[0].interpolator(data['ref']['image'], p2D_ref)
             color_image3 = transforms.functional.to_pil_image(F_ref.permute(0,2,1).view(3,100,100), mode='RGB')
             color_image3 = np.array(color_image3)
@@ -118,7 +120,7 @@ class TwoViewRefiner(BaseModel):
                 cv2.circle(color_image1, (np.int32(p2D_ref[0][j][0]), np.int32(p2D_ref[0][j][1])), 2, (255, 0, 0),
                            -1)
 
-            p3D_q = data['T_r2q_gt'] * data['ref']['points3D']
+            p3D_q = data['query']['T_w2cam']*data['query']['points3D']
             p2D, visible = pred['query']['camera_pyr'][0].world2image(p3D_q)
             F_p2D_raw, _, _ = self.optimizer[0].interpolator(data['query']['image'], p2D, return_gradients=False)
             color_image2 = transforms.functional.to_pil_image(F_p2D_raw.permute(0,2,1).view(3,100,100), mode='RGB')
@@ -135,11 +137,11 @@ class TwoViewRefiner(BaseModel):
             ax4.imshow(color_image3)
             plt.show()
 
-        p3D_ref = data['ref']['points3D']
-        T_init = data['T_r2q_init']
+        p3D_query = data['query']['points3D']
+        T_init = data['T_q2r_init']
 
-        pred['T_r2q_init'] = []
-        pred['T_r2q_opt'] = []
+        pred['T_q2r_init'] = []
+        pred['T_q2r_opt'] = []
         pred['valid_masks'] = []
         pred['L1_loss'] = []
         for i in reversed(range(len(self.extractor.scales))):
@@ -152,42 +154,51 @@ class TwoViewRefiner(BaseModel):
             else:
                 opt = self.optimizer
 
-            p2D_ref, visible = cam_ref.world2image(p3D_ref)
-            F_ref, mask, _ = opt.interpolator(F_ref, p2D_ref)
+            # p2D_ref, visible = cam_ref.world2image(p3D_ref)
+            # F_ref, mask, _ = opt.interpolator(F_ref, p2D_ref)
+            # mask &= visible
+            p2D_query, visible = cam_q.world2image(data['query']['T_w2cam']*p3D_query)
+            F_q, mask, _ = opt.interpolator(F_q, p2D_query)
             mask &= visible
 
             W_ref_q = None
             if cal_confidence != 0 and self.extractor.conf.get('compute_uncertainty', False):
             #if self.extractor.conf.get('compute_uncertainty', False):
                 W_q = pred['query']['confidences'][i]
+                W_q, _, _ = opt.interpolator(W_q, p2D_query)
+                W_ref = pred['ref']['confidences'][i]
+                # W_ref, _, _ = opt.interpolator(W_ref, p2D_ref)
                 # only use confidence of query, instead of confidence of ref use None
                 if cal_confidence == 1:
                     W_ref_q = (None, W_q)
                 else:
-                    W_ref = pred['ref']['confidences'][i]
-                    W_ref, _, _ = opt.interpolator(W_ref, p2D_ref)
                     W_ref_q = (W_ref, W_q)
 
 
             if self.conf.normalize_features:
-                F_ref = nnF.normalize(F_ref, dim=2)  # B x N x C
-                F_q = nnF.normalize(F_q, dim=1)  # B x C x W x H
+                # F_ref = nnF.normalize(F_ref, dim=2)  # B x N x C
+                # F_q = nnF.normalize(F_q, dim=1)  # B x C x W x H
+                F_q = nnF.normalize(F_q, dim=2)  # B x N x C
+                F_ref = nnF.normalize(F_ref, dim=1)  # B x C x W x H
 
 
             if no_opt:
                 T_opt = T_init.detach()
             else:
+                # T_opt, failed = opt(dict(
+                #     p3D=p3D_ref, F_ref=F_ref, F_q=F_q, T_init=T_init, cam_q=cam_q,
+                #     mask=mask, W_ref_q=W_ref_q))
                 T_opt, failed = opt(dict(
-                    p3D=p3D_ref, F_ref=F_ref, F_q=F_q, T_init=T_init, cam_q=cam_q,
+                    p3D=p3D_query, F_ref=F_ref, F_q=F_q, T_init=T_init, camera=cam_ref,
                     mask=mask, W_ref_q=W_ref_q))
 
-            pred['T_r2q_init'].append(T_init)
-            pred['T_r2q_opt'].append(T_opt)
+            pred['T_q2r_init'].append(T_init)
+            pred['T_q2r_opt'].append(T_opt)
             T_init = T_opt.detach()
 
             # add by shan, query & reprojection GT error, for query unet back propogate
             if l1_loss and not share_weight:
-                loss = self.preject_l1loss(opt, p3D_ref, F_ref, F_q, data['T_r2q_gt'], cam_q, mask=mask, W_ref_query=W_ref_q)
+                loss = self.preject_l1loss(opt, p3D_query, F_ref, F_q, data['T_q2r_gt'], cam_ref, mask=mask, W_ref_query=W_ref_q)
                 pred['L1_loss'].append(loss)
 
         return pred
@@ -215,13 +226,13 @@ class TwoViewRefiner(BaseModel):
             param.requires_grad = True
 
     def loss(self, pred, data):
-        cam_q = data['query']['camera']
+        cam_ref = data['ref']['camera']
 
-        def project(T_r2q):
-            return cam_q.world2image(T_r2q * data['ref']['points3D'])
+        def project(T_q2r):
+            return cam_ref.world2image(T_q2r * data['query']['points3D'])
 
-        p2D_q_gt, mask = project(data['T_r2q_gt'])
-        p2D_q_i, mask_i = project(data['T_r2q_init'])
+        p2D_r_gt, mask = project(data['T_q2r_gt'])
+        p2D_r_i, mask_i = project(data['T_q2r_init'])
         mask = (mask & mask_i).float()
 
         too_few = torch.sum(mask, -1) < 10
@@ -233,9 +244,9 @@ class TwoViewRefiner(BaseModel):
             #          data['query']['index'][i].item())
             #         for i in torch.where(too_few)[0]]))
 
-        def reprojection_error(T_r2q):
-            p2D_q, _ = project(T_r2q)
-            err = torch.sum((p2D_q_gt - p2D_q)**2, dim=-1)
+        def reprojection_error(T_q2r):
+            p2D_r, _ = project(T_q2r)
+            err = torch.sum((p2D_r_gt - p2D_r)**2, dim=-1)
             err = scaled_barron(1., 2.)(err)[0]/4
             err = masked_mean(err, mask, -1)
             return err
@@ -243,7 +254,7 @@ class TwoViewRefiner(BaseModel):
         num_scales = len(self.extractor.scales)
         success = None
         losses = {'total': 0.}
-        for i, T_opt in enumerate(pred['T_r2q_opt']):
+        for i, T_opt in enumerate(pred['T_q2r_opt']):
             err = reprojection_error(T_opt).clamp(max=self.conf.clamp_error)
             loss = err / num_scales
             if i > 0:
@@ -255,7 +266,7 @@ class TwoViewRefiner(BaseModel):
         losses['reprojection_error'] = err
         losses['total'] *= (~too_few).float()
 
-        err_init = reprojection_error(pred['T_r2q_init'][0])
+        err_init = reprojection_error(pred['T_q2r_init'][0])
         losses['reprojection_error/init'] = err_init
 
         # add by shan, query & reprojection GT error, for query unet back propogate
@@ -267,26 +278,26 @@ class TwoViewRefiner(BaseModel):
         return losses
 
     def metrics(self, pred, data):
-        T_q2r_gt = data['ref']['T_w2cam'] @ data['query']['T_w2cam'].inv()
+        T_r2q_gt = data['T_q2r_gt'].inv()
 
         @torch.no_grad()
-        def scaled_pose_error(T_r2q):
-            err_R, err_t = (T_r2q @ T_q2r_gt).magnitude()
-            err_x = (T_r2q @ T_q2r_gt).magnitude_lateral()
+        def scaled_pose_error(T_q2r):
+            err_R, err_t = (T_q2r @ T_r2q_gt).magnitude()
+            err_x = (T_q2r @ T_r2q_gt).magnitude_lateral()
             if self.conf.normalize_dt:
-                err_t /= torch.norm(T_q2r_gt.t, dim=-1)
+                err_t /= torch.norm(T_r2q_gt.t, dim=-1)
             # change for validate lateral error only, change by shan
             # return err_R, err_t
-                err_x /= T_q2r_gt.magnitude_lateral()
+                err_x /= T_r2q_gt.magnitude_lateral()
             return err_R, err_x
 
         metrics = {}
-        for i, T_opt in enumerate(pred['T_r2q_opt']):
+        for i, T_opt in enumerate(pred['T_q2r_opt']):
             err = scaled_pose_error(T_opt)
             metrics[f'R_error/{i}'], metrics[f't_error/{i}'] = err
         metrics['R_error'], metrics['t_error'] = err
 
-        err_init = scaled_pose_error(pred['T_r2q_init'][0])
+        err_init = scaled_pose_error(pred['T_q2r_init'][0])
         metrics['R_error/init'], metrics['t_error/init'] = err_init
 
         return metrics

@@ -240,7 +240,7 @@ def training(rank, conf, output_dir, args):
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
         model = torch.nn.parallel.DistributedDataParallel(
             model, device_ids=[device], find_unused_parameters=True)
-        #model._set_static_graph() # add by shan
+        model._set_static_graph() # add by shan
     if rank == 0:
         logger.info(f'Model: \n{model}')
     torch.backends.cudnn.benchmark = True
@@ -421,7 +421,7 @@ if __name__ == '__main__':
     parser.add_argument('--conf', type=str)
     parser.add_argument('--overfit', action='store_true', default=False)
     parser.add_argument('--restore', action='store_true', default=True)
-    parser.add_argument('--distributed', action='store_true',default=True)
+    parser.add_argument('--distributed', action='store_true',default=False)
     parser.add_argument('--dotlist', nargs='*', default=["data.name=kitti","data.max_num_points3D=10000","data.force_num_points3D=False",
                                                          "data.num_workers=0","data.batch_size=1","train.eval_every_iter=10000","train.lr=1e-3","optimizer.num_iters=5"])
     args = parser.parse_intermixed_args()

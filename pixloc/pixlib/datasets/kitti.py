@@ -27,9 +27,7 @@ from pixloc.pixlib.geometry import Camera, Pose
 
 visualise_debug = True
 
-# depth_map_dir = '../../../depth/GANet/Kitti/'
-# keypoints_dir = 'Keypoints/lidar_512_points.h5' #lidar_64_points.h5 #lidar_orb_2_32_points.h5 #lidar_512_points.h5 # more data does not help
-root_dir = '/students/u6617221/shan/data'
+root_dir = '/data/Kitti'#'/students/u6617221/shan/data'
 test_csv_file_name = 'test.csv'
 ignore_csv_file_name = 'ignore.csv'
 satmap_dir = 'satmap_20'
@@ -182,18 +180,6 @@ class _Dataset(Dataset):
         self.root = root_dir
         self.conf = conf
 
-        # for keypoints load
-        # self.keypoints = h5py.File(os.path.join(root,keypoints_dir), "r") #scio.loadmat(os.path.join(root, keypoints_dir))
-
-        # for sat embedding
-        # SatMap_size = utils.get_process_satmap_edge()
-        # y, x = torch.meshgrid(torch.arange(SatMap_size), torch.arange(SatMap_size))
-        # y = y * 2 / SatMap_size - 1
-        # x = x * 2 / SatMap_size - 1
-        # x_no0 = torch.where(abs(x) < 1E-6, torch.tensor(1E-6), x)  # /0 process
-        # self.sat_yaw = ((torch.arctan(-y / x_no0) % (2.0 * np.pi)) / np.pi).unsqueeze(0)-1
-        # self.sat_dis = torch.sqrt(torch.pow(x, 2) + torch.pow(y, 2)).unsqueeze(0)
-
         # satmap NED coords
         file = os.path.join(self.root, grdimage_dir, 'satellite_gps_center.npy')
         self.Geodetic = np.load(file)
@@ -209,49 +195,56 @@ class _Dataset(Dataset):
         self.neigh = NearestNeighbors(n_neighbors=1)
         self.neigh.fit(NED_coords_satellite)
 
+        # read form txt files
         self.file_name = []
-        test_df = pd.read_csv(os.path.join(self.root, test_csv_file_name))
-        ignore_df = pd.read_csv(os.path.join(self.root, ignore_csv_file_name))
+        txt_file_name = os.path.join(self.root, grdimage_dir, 'kitti_split', split+'_files.txt')
+        with open(txt_file_name, "r") as txt_f:
+            line = txt_f.readline().strip()
+            self.file_name.append(line)
 
-        # get original image & location information
-        dirs = os.listdir(os.path.join(self.root, grdimage_dir))
-        for director in dirs:
-            # director: such as 2011_09_26
-            if '2011' not in director:
-                continue
-
-            # get drive dir
-            subdirs = os.listdir(os.path.join(self.root, grdimage_dir, director))
-            for subdir in subdirs:
-                # subdir: such as 2011_09_26_drive_0019_sync
-                if 'drive' not in subdir:
-                    continue
-
-                if subdir in ignore_df.values:
-                    continue
-
-                # check train & val from split
-                if split=='train':
-                    # train, ignore subdir in test.csv
-                    if subdir in test_df.values:
-                        continue
-                else:
-                    # test, ignore subdir not in test.csv
-                    if subdir not in test_df.values:
-                        continue
-
-                items = os.listdir(os.path.join(self.root, grdimage_dir, director, subdir, left_color_camera_dir))
-
-                tmp_file_name = []
-                # order items
-                items.sort()
-                for item in items:
-                    if 'png' not in item.lower():
-                        continue
-
-                    # file name
-                    f_name = os.path.join(director, subdir, item)
-                    self.file_name.append(f_name)
+        #self.file_name = []
+        # test_df = pd.read_csv(os.path.join(self.root, test_csv_file_name))
+        # ignore_df = pd.read_csv(os.path.join(self.root, ignore_csv_file_name))
+        #
+        # # get original image & location information
+        # dirs = os.listdir(os.path.join(self.root, grdimage_dir))
+        # for director in dirs:
+        #     # director: such as 2011_09_26
+        #     if '2011' not in director:
+        #         continue
+        #
+        #     # get drive dir
+        #     subdirs = os.listdir(os.path.join(self.root, grdimage_dir, director))
+        #     for subdir in subdirs:
+        #         # subdir: such as 2011_09_26_drive_0019_sync
+        #         if 'drive' not in subdir:
+        #             continue
+        #
+        #         if subdir in ignore_df.values:
+        #             continue
+        #
+        #         # check train & val from split
+        #         if split=='train':
+        #             # train, ignore subdir in test.csv
+        #             if subdir in test_df.values:
+        #                 continue
+        #         else:
+        #             # test, ignore subdir not in test.csv
+        #             if subdir not in test_df.values:
+        #                 continue
+        #
+        #         items = os.listdir(os.path.join(self.root, grdimage_dir, director, subdir, left_color_camera_dir))
+        #
+        #         tmp_file_name = []
+        #         # order items
+        #         items.sort()
+        #         for item in items:
+        #             if 'png' not in item.lower():
+        #                 continue
+        #
+        #             # file name
+        #             f_name = os.path.join(director, subdir, item)
+        #             self.file_name.append(f_name)
 
     def __len__(self):
         return len(self.file_name)
@@ -279,7 +272,7 @@ class _Dataset(Dataset):
         # computer the relative pose between imu to camera
         imu2cam_H = lidar2cam_H @ imu2lidar_H
         imu2cam_H[:3, 3] += camera_t
-        imu2cam_eulers = euler_from_matrix(imu2cam_H[:3, :3])
+        #imu2cam_eulers = euler_from_matrix(imu2cam_H[:3, :3])
         camera_center_loc = -imu2cam_H[:3, :3].T @ imu2cam_H[:3, 3]
 
         # get location & rotation
@@ -290,6 +283,7 @@ class _Dataset(Dataset):
         location = [float(content[0]), float(content[1]), float(content[2])]
         roll, pitch, heading = float(content[3]), float(content[4]), float(content[5])
         imu_rot = euler_matrix(roll, pitch, heading)
+        cam_rot = euler_matrix(-pitch, -heading, roll)
 
         # read lidar points
         velodyne_file_name = os.path.join(self.root, grdimage_dir, drive_dir, vel_dir,
@@ -313,11 +307,6 @@ class _Dataset(Dataset):
         #     depth_map /= satmap_size / 2  # normalize to [0~1] # need to ignore depth more than 1???
         #     grd_left = torch.cat([grd_left, depth_map.float()], dim=0)
 
-        # # key ponints
-        # name = drive_dir[:10] + '_' + drive_dir[28:32] + '_' + image_no
-        # keypoints = self.keypoints[name]
-        # keypoints = torch.tensor(keypoints).float()
-
         # ground images, left color camera
         left_img_name = os.path.join(self.root, grdimage_dir, drive_dir, left_color_camera_dir, image_no.lower())
         with Image.open(left_img_name, 'r') as GrdImg:
@@ -331,10 +320,10 @@ class _Dataset(Dataset):
         # project these lidar points to image
         # vis_2d: lidar points projected 2D position in the image
         # velodyne_local: lidar points (3D) which are visible to the image, in the velodyne coordinate system
-        _, cam_3d, velodyne_local = project_lidar_to_cam(velodyne, camera_P, camera_k, camera_R, camera_t,
+        _, cam_3d, _ = project_lidar_to_cam(velodyne, camera_P, camera_k, camera_R, camera_t,
                                                          lidar2cam_R, lidar2cam_T, (grd_ori_H,grd_ori_W))
         # transform these velodyne_local to the IMU coordinate system
-        velodyne_imu = np.linalg.inv(imu2lidar_H) @ velodyne_local
+        # velodyne_imu = np.linalg.inv(imu2lidar_H) @ velodyne_local
 
         # satellite map
         x, y, z = gps_func.GeodeticToEcef(location[0] * np.pi / 180.0, location[1] * np.pi / 180.0, location[2])
@@ -377,45 +366,21 @@ class _Dataset(Dataset):
         cam_location_x = x_sg + satellite_ori_size / 2.0 + dx_cam_pixel
         cam_location_y = y_sg + satellite_ori_size / 2.0 + dy_cam_pixel
 
-        # # get velodyne_world on the satelite map
-        velodyne_sat_2d, velodyne_sat, velodyne_imu, sat_mask, imu2sat = project_lidar_to_sat(velodyne_imu, imu_rot, meter_per_pixel, [body_location_x, body_location_y])
-        velodyne_grd = cam_3d[:,sat_mask].T
+        # # # get velodyne_world on the satelite map
+        # velodyne_sat_2d, velodyne_sat, velodyne_imu, sat_mask, imu2sat = project_lidar_to_sat(velodyne_imu, imu_rot, meter_per_pixel, [body_location_x, body_location_y])
+        # velodyne_grd = cam_3d[:,sat_mask].T
+
+        mask = cam_3d[-1] < satellite_ori_size * meter_per_pixel / 2.0
+        cam_3d = cam_3d[:,mask].T
 
         # check max_num_points
-        num_diff = self.conf.max_num_points3D - len(velodyne_sat)
+        num_diff = self.conf.max_num_points3D - len(cam_3d)
         if num_diff < 0:
-            valid_idx = np.random.choice(range(len(velodyne_sat)), self.conf.max_num_points3D)
-            velodyne_sat = velodyne_sat[valid_idx]
-            velodyne_grd = velodyne_grd[valid_idx]
+            valid_idx = np.random.choice(range(len(cam_3d)), self.conf.max_num_points3D)
+            cam_3d = cam_3d[valid_idx]
         elif num_diff > 0 and self.conf.force_num_points3D:
-            sat_add = np.ones((num_diff, 3)) * velodyne_sat[-1]
-            grd_add = np.ones((num_diff, 3)) * velodyne_grd[-1]
-            velodyne_sat = np.vstack((velodyne_sat, sat_add))
-            velodyne_grd = np.vstack((velodyne_grd, grd_add))
-
-        # # with yaw embedding
-        # _, H, W = grd_left.size()
-        # fov, min_fov = utils.get_grd_fov()
-        # yaw_range = (torch.arange(W) * fov / W + min_fov) / 180  # -1~1
-        # yaw_range = yaw_range+heading #[W]
-        # yaw_range = torch.where(yaw_range > 1, yaw_range - 2, yaw_range)
-        # yaw_range = torch.where(yaw_range < -1, yaw_range + 2, yaw_range)
-        # yaw_range = yaw_range.view(1,1,W).repeat(1, H, 1).float()
-        # grd_left = torch.cat([grd_left, yaw_range], dim=0)
-        # yaw and dis embedding
-        # sat_map = torch.cat([sat_map,self.sat_dis.clone(),self.sat_yaw.clone()],dim=0)
-
-
-        # sat 
-        camera = Camera.from_colmap(dict(
-            model='SIMPLE_PINHOLE', params=(1 / meter_per_pixel, body_location_x, body_location_y, 0,0,0,0,np.infty),#np.infty for parallel projection
-            width=int(satellite_ori_size), height=int(satellite_ori_size)))
-        sat_image = {
-            'image': sat_map.float(),
-            'camera': camera.float(),
-            'T_w2cam': Pose.from_4x4mat(imu2sat).float(),
-            'points3D': torch.from_numpy(velodyne_sat).float()  # world is imu, from imu to sat
-        }
+            point_add = np.ones((num_diff, 3)) * cam_3d[-1]
+            cam_3d = np.vstack((cam_3d, point_add))
 
         # grd
         camera_para = (camera_k[0,0],camera_k[1,1],camera_k[0,2],camera_k[1,2])
@@ -423,35 +388,53 @@ class _Dataset(Dataset):
             model='PINHOLE', params=camera_para,
             width=int(grd_pad_size[1]), height=int(grd_pad_size[0])))
         grd_image = {
+            # to array, when have multi query
             'image': grd_left.float(),
             'camera': camera.float(),
-            'T_w2cam': Pose.from_4x4mat(imu2cam_H).float(),
-            'points3D': torch.from_numpy(velodyne_grd).float()  # world is imu
+            'T_w2cam': Pose.from_4x4mat(np.eye(4)).float(), #Pose.from_Rt(camera_R, camera_t).float(), # already consider calibration in points3D
+            'points3D': torch.from_numpy(cam_3d).float() # world is camera coordinates # one for multi
         }
 
-        r2q_gt = grd_image['T_w2cam'] @ sat_image['T_w2cam'].inv() # query:grd
-        #r2q_gt = sat_image['T_w2cam'] @ grd_image['T_w2cam'].inv() # query:sat
         # ramdom shift translation and ratation on yaw
-        YawShiftRange = 2 * np.pi / 180 # in 10 degree
+        YawShiftRange = 2 * np.pi / 180  # in 10 degree
         yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
-        R_yaw = torch.tensor([[np.cos(yaw),-np.sin(yaw),0],[np.sin(yaw),np.cos(yaw),0],[0,0,1]])
-
-        TShiftRange = 2# in 2 meter
+        R_yaw = torch.tensor([[np.cos(yaw), -np.sin(yaw), 0], [np.sin(yaw), np.cos(yaw), 0], [0, 0, 1]])
+        TShiftRange = 2  # in 2 meter
         T = 2 * TShiftRange * np.random.rand((3)) - TShiftRange
-        T[2] = 0 # no shift on height
+        T[2] = 0  # no shift on height
 
+        r2q_gt = Pose.from_aa( np.array([pitch,heading,-roll]),np.zeros(3)).float()
+        r2q_gt = r2q_gt@(Pose.from_Rt(camera_R, camera_t).inv().float()) # cancel camera_grd calibration
         r2q_init = Pose.from_Rt(R_yaw,T).float()
         r2q_init = r2q_gt@r2q_init
 
+        # sat
+        grd2sat = np.array([[0,0,1,0],[1,0,0,0],[0,1,0,0],[0,0,0,1]]) #grd z->sat x; grd x->sat y, grd y->sat z
+        grd2sat = Pose.from_4x4mat(grd2sat).float()
+
+        # add grd2sat into gt and init
+        q2r_gt = grd2sat @ (r2q_gt.inv())
+        q2r_init = grd2sat @ (r2q_init.inv())
+
+        #cam2sat = grd2sat@(r2q_gt.inv())
+        camera = Camera.from_colmap(dict(
+            model='SIMPLE_PINHOLE', params=(1 / meter_per_pixel, cam_location_x, cam_location_y, 0,0,0,0,np.infty),#np.infty for parallel projection
+            width=int(satellite_ori_size), height=int(satellite_ori_size)))
+        sat_image = {
+            'image': sat_map.float(),
+            'camera': camera.float(),
+            'T_w2cam': Pose.from_4x4mat(np.eye(4)).float() # grd 2 sat in q2r, so just eye(4)
+            #'points3D': None # use grd points 3D
+        }
+
         # scene
         scene = drive_dir[:4]+drive_dir[5:7]+drive_dir[8:10]+drive_dir[28:32]+image_no[:10]
-
         data = {
             'ref': sat_image,
             'query': grd_image,
             'overlap': 0.5,
-            'T_r2q_init': r2q_init,
-            'T_r2q_gt': r2q_gt, 
+            'T_q2r_init': q2r_init,
+            'T_q2r_gt': q2r_gt,
             'scene': scene
         }
 
@@ -461,41 +444,30 @@ class _Dataset(Dataset):
             ax1 = fig.add_subplot(1, 2, 1)
             ax2 = fig.add_subplot(1, 2, 2)
 
-            #img_0 = cv2.imread(left_img_name, cv2.IMREAD_GRAYSCALE)
-            #img_1 = cv2.imread(SatMap_name, cv2.IMREAD_GRAYSCALE)
-            # color_image0 = cv2.cvtColor(img_0, cv2.COLOR_GRAY2RGB)
-            # color_image1 = cv2.cvtColor(img_1, cv2.COLOR_GRAY2RGB)
             color_image0 = transforms.functional.to_pil_image(grd_left, mode='RGB')
             color_image0 = np.array(color_image0)
             color_image1 = transforms.functional.to_pil_image(sat_map, mode='RGB')
             color_image1 = np.array(color_image1)
-            # get velodyne_world on the satelite map
-            # velodyne_grd = grd_image['T_w2cam'] * velodyne_imu # imu2camera
-            grd_2d, _ = grd_image['camera'].world2image(velodyne_grd) ##camera 3d to 2d
-            grd_2d = grd_2d.T
-            for j in range(grd_2d.shape[1]):
-                cv2.circle(color_image0, (np.int32(grd_2d[0][j]), np.int32(grd_2d[1][j])), 2, (255, 0, 0),
-                           -1)
-            # velodyne_sat = sat_image['T_w2cam'] * velodyne_imu
-            sat_2d, _ = sat_image['camera'].world2image(velodyne_sat)  ##camera 3d to 2d
-            sat_2d = sat_2d.T
-            for j in range(sat_2d.shape[1]):
-                cv2.circle(color_image1, (np.int32(sat_2d[0][j]), np.int32(sat_2d[1][j])), 2, (255, 0, 0),
-                           -1)
-
-            # sat to grd gt green
-            cam_3d = r2q * velodyne_sat
-            grd_2d, _ = grd_image['camera'].world2image(cam_3d)  ##camera 3d to 2d
+            grd_2d, _ = grd_image['camera'].world2image(grd_image['points3D']) ##camera 3d to 2d
             grd_2d = grd_2d.T
             for j in range(grd_2d.shape[1]):
                 cv2.circle(color_image0, (np.int32(grd_2d[0][j]), np.int32(grd_2d[1][j])), 2, (0, 255, 0),
                            -1)
-            # sat to grd init blue
-            cam_3d = r2q_init * velodyne_sat
-            grd_2d, _ = grd_image['camera'].world2image(cam_3d)  ##camera 3d to 2d
-            grd_2d = grd_2d.T
-            for j in range(grd_2d.shape[1]):
-                cv2.circle(color_image0, (np.int32(grd_2d[0][j]), np.int32(grd_2d[1][j])), 2, (0, 0, 255),
+
+            # sat gt green
+            sat_3d = data['T_q2r_gt']*grd_image['points3D']
+            sat_2d, _ = sat_image['camera'].world2image(sat_3d)  ##camera 3d to 2d
+            sat_2d = sat_2d.T
+            for j in range(sat_2d.shape[1]):
+                cv2.circle(color_image1, (np.int32(sat_2d[0][j]), np.int32(sat_2d[1][j])), 2, (0, 255, 0),
+                           -1)
+
+            # sat init red
+            sat_3d = data['T_q2r_init']* grd_image['points3D']
+            sat_2d, _ = sat_image['camera'].world2image(sat_3d)  ##camera 3d to 2d
+            sat_2d = sat_2d.T
+            for j in range(sat_2d.shape[1]):
+                cv2.circle(color_image1, (np.int32(sat_2d[0][j]), np.int32(sat_2d[1][j])), 2, (255, 0, 0),
                            -1)
 
             ax1.imshow(color_image0)
@@ -514,90 +486,16 @@ class _Dataset(Dataset):
 
         return data
 
-# def load_val_data(batch_size):
-#     # SatMap_process_edge = utils.get_process_satmap_edge()
-#
-#     if visualise_debug:
-#         satmap_transform = transforms.Compose([
-#             # transforms.Resize(size=[SatMap_process_edge,SatMap_process_edge]),
-#             transforms.ToTensor(),
-#         ])
-#     else:
-#         satmap_transform = transforms.Compose([
-#             # transforms.Resize(size=[SatMap_process_edge,SatMap_process_edge]),
-#             transforms.ToTensor(),
-#             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-#         ])
-#
-#     # Grd_h = GrdImg_H
-#     # Grd_w = GrdImg_W
-#
-#     if visualise_debug:
-#         grdimage_transform = transforms.Compose([
-#             # transforms.Resize(size=[Grd_h,Grd_w]),
-#             transforms.ToTensor(),
-#         ])
-#     else:
-#         grdimage_transform = transforms.Compose([
-#             # transforms.Resize(size=[Grd_h,Grd_w]),
-#             transforms.ToTensor(),
-#             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-#         ])  # 0~1 to -1~1
-#     depth_transform = transforms.Compose([
-#         transforms.ToTensor(),
-#         # transforms.Resize(size=[Grd_h, Grd_w]),
-#     ])
-#
-#     test_dataset = SatGrdDataset(root=root_dir, train_mode=False,
-#                                  transform=(satmap_transform, grdimage_transform, depth_transform))
-#     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True, pin_memory=True,
-#                              num_workers=num_thread_workers, drop_last=False)
-#     return test_loader
-#
-#
-# def load_train_data(batch_size):
-#     # SatMap_process_edge = utils.get_process_satmap_edge()
-#
-#     satmap_transform = transforms.Compose([
-#         # transforms.Resize(size=[SatMap_process_edge,SatMap_process_edge]),
-#         transforms.ToTensor(),
-#         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # test
-#     ])
-#
-#     # Grd_h = GrdImg_H
-#     # Grd_w = GrdImg_W
-#
-#     grdimage_transform = transforms.Compose([
-#         # transforms.Resize(size=[Grd_h,Grd_w]),
-#         transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4, hue=0.4),
-#         transforms.ToTensor(),
-#         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-#     ])
-#
-#     depth_transform = transforms.Compose([
-#         transforms.ToTensor(),
-#         # transforms.Resize(size=[Grd_h, Grd_w]),
-#     ])
-#
-#     train_set = SatGrdDataset(root=root_dir, train_mode=True,
-#                               transform=(satmap_transform, grdimage_transform, depth_transform))
-#     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, pin_memory=True,
-#                               num_workers=num_thread_workers, drop_last=False)
-#     return train_loader
-#
-#
 if __name__ == '__main__':
     # test to load 1 data
     conf = {
-        'min_overlap': 0.3,  # ?
-        'max_overlap': 1.0,  # ?
         'max_num_points3D': 20000,
         'force_num_points3D': True,
         'batch_size': 1,
         'min_baseline': 1.,
         'max_baseline': 7.,
 
-        'resize': 720,  # ?
+        'resize': None,
         'resize_by': 'min',
         'crop': 720,  # ?
         'optimal_crop': False,
