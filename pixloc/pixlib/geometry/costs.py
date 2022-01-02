@@ -65,16 +65,18 @@ class DirectAbsoluteCost:
             else:
                 weight = C_query
             weight = weight.squeeze(-1).masked_fill(~valid, 0.)
+            # normalize weight
+            weight = torch.nn.functional.normalize(weight, p=float('inf'), dim=-1, eps=1e-30)
         else:
             weight = None
 
-        if self.normalize:
+        if 1: #self.normalize:
             F_p2D = torch.nn.functional.normalize(F_p2D_raw, dim=-1)
         else:
             F_p2D = F_p2D_raw
 
-        res = F_query - F_p2D_raw
-        info = (p3D_r, F_p2D_raw, gradients) # ref information
+        res = F_query - F_p2D
+        info = (p3D_r, F_p2D, gradients) # ref information
         return res, valid, weight, F_p2D, info
 
     # def jacobian(
@@ -97,7 +99,7 @@ class DirectAbsoluteCost:
         J_p3D_T = T_q2r.J_transform(p3D_r)
         J_p2D_p3D, _ = camera.J_world2image(p3D_r)
 
-        if self.normalize:
+        if 1:#self.normalize:
             J_f_p2D = J_normalization(F_p2D_raw) @ J_f_p2D
 
         J_p2D_T = J_p2D_p3D @ J_p3D_T

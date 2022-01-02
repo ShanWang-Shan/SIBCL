@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # add by shan
 share_weight = False
 cal_confidence = 2 # 0: no confidence, 1:only query 2: both query and ref
-no_opt = False
+no_opt = True
 l1_loss = True
 
 class TwoViewRefiner(BaseModel):
@@ -102,8 +102,6 @@ class TwoViewRefiner(BaseModel):
             fig = plt.figure(figsize=plt.figaspect(0.5))
             ax1 = fig.add_subplot(2, 2, 1)
             ax2 = fig.add_subplot(2, 2, 2)
-            ax3 = fig.add_subplot(2, 2, 3)
-            ax4 = fig.add_subplot(2, 2, 4)
             color_image0 = transforms.functional.to_pil_image(data['query']['image'][0], mode='RGB') # grd
             color_image0 = np.array(color_image0)
             color_image1 = transforms.functional.to_pil_image(data['ref']['image'][0], mode='RGB') #sat
@@ -113,8 +111,6 @@ class TwoViewRefiner(BaseModel):
             p3D_ref = data['T_q2r_gt'] * data['query']['points3D']
             p2D_ref, visible = pred['ref']['camera_pyr'][0].world2image(p3D_ref)
             F_ref, mask, _ = self.optimizer[0].interpolator(data['ref']['image'], p2D_ref)
-            color_image3 = transforms.functional.to_pil_image(F_ref.permute(0,2,1).view(3,100,100), mode='RGB')
-            color_image3 = np.array(color_image3)
             p2D_ref = p2D_ref.cpu().detach()
             for j in range(p2D_ref.shape[1]):
                 cv2.circle(color_image1, (np.int32(p2D_ref[0][j][0]), np.int32(p2D_ref[0][j][1])), 2, (255, 0, 0),
@@ -123,8 +119,6 @@ class TwoViewRefiner(BaseModel):
             p3D_q = data['query']['T_w2cam']*data['query']['points3D']
             p2D, visible = pred['query']['camera_pyr'][0].world2image(p3D_q)
             F_p2D_raw, _, _ = self.optimizer[0].interpolator(data['query']['image'], p2D, return_gradients=False)
-            color_image2 = transforms.functional.to_pil_image(F_p2D_raw.permute(0,2,1).view(3,100,100), mode='RGB')
-            color_image2 = np.array(color_image2)
             p2D = p2D.cpu().detach()
             #valid = valid & visible
             for j in range(p2D.shape[1]):
@@ -133,8 +127,6 @@ class TwoViewRefiner(BaseModel):
 
             ax1.imshow(color_image0)
             ax2.imshow(color_image1)
-            ax3.imshow(color_image2)
-            ax4.imshow(color_image3)
             plt.show()
 
         p3D_query = data['query']['points3D']
