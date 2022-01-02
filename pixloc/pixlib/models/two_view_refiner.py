@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # add by shan
 share_weight = False
-cal_confidence = 2 # 0: no confidence, 1:only query 2: both query and ref
+cal_confidence = 2 # 0: no confidence, 1:only ref 2: both query and ref
 no_opt = True
 l1_loss = True
 
@@ -162,7 +162,7 @@ class TwoViewRefiner(BaseModel):
                 # W_ref, _, _ = opt.interpolator(W_ref, p2D_ref)
                 # only use confidence of query, instead of confidence of ref use None
                 if cal_confidence == 1:
-                    W_ref_q = (None, W_q)
+                    W_ref_q = (W_ref, None)
                 else:
                     W_ref_q = (W_ref, W_q)
 

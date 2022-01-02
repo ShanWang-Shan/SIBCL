@@ -60,15 +60,14 @@ class DirectAbsoluteCost:
             C_ref, C_query = confidences
             C_ref_p2D, _, _ = self.interpolator(
                 C_ref, p2D, return_gradients=False) # get ref 2d confidence
-
             # normalize confidences
             C_ref_p2D = torch.nn.functional.normalize(C_ref_p2D, p=float('inf'), dim=1, eps=1e-30)
-            C_query = torch.nn.functional.normalize(C_query, p=float('inf'), dim=1, eps=1e-30)
 
-            if C_ref is not None:
+            if C_query is not None:
+                C_query = torch.nn.functional.normalize(C_query, p=float('inf'), dim=1, eps=1e-30)
                 weight = C_ref_p2D * C_query
             else:
-                weight = C_query
+                weight = C_ref_p2D
             weight = weight.squeeze(-1).masked_fill(~valid, 0.)
         else:
             weight = None
