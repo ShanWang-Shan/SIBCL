@@ -352,7 +352,7 @@ def training(rank, conf, output_dir, args):
 
             del pred, data, loss, losses
 
-            if it > 5000: # for test
+            if 0:#it > 5000: # for test
                 stop = True
                 break
 
