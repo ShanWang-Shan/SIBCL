@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # add by shan
 share_weight = False
-cal_confidence = 2 # 0: no confidence, 1:only ref 2: both query and ref
+cal_confidence = 1 # 0: no confidence, 1:only ref 2: both query and ref
 no_opt = True
 l1_loss = True
 
