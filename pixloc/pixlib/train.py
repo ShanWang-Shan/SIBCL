@@ -304,8 +304,8 @@ def training(rank, conf, output_dir, args):
             # annealed = linear_annealing(0, 1, tot_it, start_step=len(train_loader)*13, end_step=len(train_loader)*(13+1))
             # loss = annealed * torch.mean(losses['total']) + torch.mean(losses['L1_loss']) # total is total of opt RT losses
             #loss = torch.mean(losses['total'])
-            #loss = torch.mean(losses['L1_loss'])
-            loss = torch.mean(losses['total']) + torch.mean(losses['L1_loss'])  # total is total of opt RT losses
+            loss = torch.mean(losses['L1_loss'])
+            #loss = torch.mean(losses['total']) + torch.mean(losses['L1_loss'])  # total is total of opt RT losses
 
             do_backward = loss.requires_grad
             if args.distributed:
