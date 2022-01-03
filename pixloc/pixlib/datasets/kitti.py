@@ -404,12 +404,12 @@ class _Dataset(Dataset):
         }
 
         # ramdom shift translation and ratation on yaw
-        YawShiftRange = 2 * np.pi / 180  # in 10 degree
+        YawShiftRange = 15 * np.pi / 180  # in 10 degree
         yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
-        R_yaw = torch.tensor([[np.cos(yaw), -np.sin(yaw), 0], [np.sin(yaw), np.cos(yaw), 0], [0, 0, 1]])
-        TShiftRange = 2  # in 2 meter
+        R_yaw = torch.tensor([[np.cos(yaw), 0, np.sin(yaw)], [0, 1, 0], [-np.sin(yaw), 0, np.cos(yaw)]])
+        TShiftRange = 5  # in 5 meter
         T = 2 * TShiftRange * np.random.rand((3)) - TShiftRange
-        T[2] = 0  # no shift on height
+        T[1] = 0  # no shift on height
 
         r2q_gt = Pose.from_aa( np.array([pitch,heading,-roll]),np.zeros(3)).float()
         r2q_gt = r2q_gt@(Pose.from_Rt(camera_R, camera_t).inv().float()) # cancel camera_grd calibration

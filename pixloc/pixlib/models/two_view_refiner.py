@@ -208,10 +208,10 @@ class TwoViewRefiner(BaseModel):
         # compute the cost and aggregate the weights
         cost = (res ** 2).sum(-1)
         loss = cost * valid.float()
-        if w_unc is not None:
-            loss = loss * w_unc
+        # if w_unc is not None:
+        #     loss = loss * w_unc
 
-        return torch.sum(loss, dim=-1)
+        return torch.mean(loss, dim=-1)
 
 
         # use w_loss???

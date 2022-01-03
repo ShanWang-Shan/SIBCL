@@ -22,7 +22,7 @@ mpl.rcParams['image.interpolation'] = 'bilinear'
 conf = {
     'min_overlap': 0.3, #?
     'max_overlap': 1.0, #?
-    'max_num_points3D': 18000,#512
+    'max_num_points3D': 10000,#512
     'force_num_points3D': True,
     'batch_size': 1, # only one, because 3D points not the same
     'min_baseline': 1.,
