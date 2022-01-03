@@ -94,41 +94,6 @@ class TwoViewRefiner(BaseModel):
             pred = {i: process_siamese(data[i]) for i in ['query']}
             pred.update({i: process_sat(data[i]) for i in ['ref']})
 
-        # debug original image
-        if 0:
-            pred['ref']['feature_maps'][0] = data['ref']['image']
-            pred['query']['feature_maps'][0] = data['query']['image']
-
-            fig = plt.figure(figsize=plt.figaspect(0.5))
-            ax1 = fig.add_subplot(2, 2, 1)
-            ax2 = fig.add_subplot(2, 2, 2)
-            color_image0 = transforms.functional.to_pil_image(data['query']['image'][0], mode='RGB') # grd
-            color_image0 = np.array(color_image0)
-            color_image1 = transforms.functional.to_pil_image(data['ref']['image'][0], mode='RGB') #sat
-            color_image1 = np.array(color_image1)
-
-            #sat
-            p3D_ref = data['T_q2r_gt'] * data['query']['points3D']
-            p2D_ref, visible = pred['ref']['camera_pyr'][0].world2image(p3D_ref)
-            F_ref, mask, _ = self.optimizer[0].interpolator(data['ref']['image'], p2D_ref)
-            p2D_ref = p2D_ref.cpu().detach()
-            for j in range(p2D_ref.shape[1]):
-                cv2.circle(color_image1, (np.int32(p2D_ref[0][j][0]), np.int32(p2D_ref[0][j][1])), 2, (255, 0, 0),
-                           -1)
-
-            p3D_q = data['query']['T_w2cam']*data['query']['points3D']
-            p2D, visible = pred['query']['camera_pyr'][0].world2image(p3D_q)
-            F_p2D_raw, _, _ = self.optimizer[0].interpolator(data['query']['image'], p2D, return_gradients=False)
-            p2D = p2D.cpu().detach()
-            #valid = valid & visible
-            for j in range(p2D.shape[1]):
-                cv2.circle(color_image0, (np.int32(p2D[0][j][0]), np.int32(p2D[0][j][1])), 2, (255, 0, 0),
-                           -1)
-
-            ax1.imshow(color_image0)
-            ax2.imshow(color_image1)
-            plt.show()
-
         p3D_query = data['query']['points3D']
         T_init = data['T_q2r_init']
 
@@ -145,6 +110,41 @@ class TwoViewRefiner(BaseModel):
                 opt = self.optimizer[i]
             else:
                 opt = self.optimizer
+
+            # debug original image
+            if 0:
+                _,_,H,W = pred['ref']['feature_maps'][i].size()
+                F_ref = nnF.interpolate(data['ref']['image'], size=(H,W), mode='bilinear')
+                _, _, H, W = pred['query']['feature_maps'][i].size()
+                F_q = nnF.interpolate(data['query']['image'], size=(H,W), mode='bilinear')
+
+                fig = plt.figure(figsize=plt.figaspect(0.5))
+                ax1 = fig.add_subplot(2, 2, 1)
+                ax2 = fig.add_subplot(2, 2, 2)
+                color_image0 = transforms.functional.to_pil_image(F_q[0], mode='RGB')  # grd
+                color_image0 = np.array(color_image0)
+                color_image1 = transforms.functional.to_pil_image(F_ref[0], mode='RGB')  # sat
+                color_image1 = np.array(color_image1)
+
+                # sat
+                p3D_ref = data['T_q2r_gt'] * data['query']['points3D']
+                p2D_ref, visible = cam_ref.world2image(p3D_ref)
+                p2D_ref = p2D_ref.cpu().detach()
+                for j in range(p2D_ref.shape[1]):
+                    cv2.circle(color_image1, (np.int32(p2D_ref[0][j][0]), np.int32(p2D_ref[0][j][1])), 2, (255, 0, 0),
+                               -1)
+
+                p3D_q = data['query']['T_w2cam'] * data['query']['points3D']
+                p2D, visible = cam_q.world2image(p3D_q)
+                p2D = p2D.cpu().detach()
+                # valid = valid & visible
+                for j in range(p2D.shape[1]):
+                    cv2.circle(color_image0, (np.int32(p2D[0][j][0]), np.int32(p2D[0][j][1])), 2, (255, 0, 0),
+                               -1)
+
+                ax1.imshow(color_image0)
+                ax2.imshow(color_image1)
+                plt.show()
 
             # p2D_ref, visible = cam_ref.world2image(p3D_ref)
             # F_ref, mask, _ = opt.interpolator(F_ref, p2D_ref)
