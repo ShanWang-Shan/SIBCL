@@ -207,12 +207,20 @@ class TwoViewRefiner(BaseModel):
 
         # compute the cost and aggregate the weights
         cost = (res ** 2).sum(-1)
-        cost, w_loss, _ = opt.loss_fn(cost)
-        loss = w_loss * valid.float()
+        loss = cost * valid.float()
         if w_unc is not None:
             loss = loss * w_unc
 
-        return torch.sum(loss,dim=-1)
+        return torch.sum(loss, dim=-1)
+
+
+        # use w_loss???
+        #cost, w_loss, _ = opt.loss_fn(cost)
+        #loss = w_loss * valid.float()
+        #if w_unc is not None:
+        #    loss = loss * w_unc
+
+        #return torch.sum(loss,dim=-1)
 
 
     # add by shan for satellite image extractor
