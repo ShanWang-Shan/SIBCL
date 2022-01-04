@@ -285,10 +285,15 @@ class Camera(TensorWrapper):
         if isinstance(scales, (int, float)):
             scales = (scales, scales)
         s = self._data.new_tensor(scales)
+        # data = torch.cat([
+        #     self.size * s,
+        #     self.f * s,
+        #     (self.c + 0.5) * s - 0.5,
+        #     self.dist], -1)
         data = torch.cat([
             self.size*s,
             self.f*s,
-            (self.c+0.5)*s-0.5,
+            self.c*s,
             self.dist, self._data[:,10:]], -1)
         return self.__class__(data)
 
