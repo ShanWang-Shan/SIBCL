@@ -119,8 +119,8 @@ class TwoViewRefiner(BaseModel):
                 F_q = nnF.interpolate(data['query']['image'], size=(H,W), mode='bilinear')
 
                 fig = plt.figure(figsize=plt.figaspect(0.5))
-                ax1 = fig.add_subplot(2, 2, 1)
-                ax2 = fig.add_subplot(2, 2, 2)
+                ax1 = fig.add_subplot(1, 2, 1)
+                ax2 = fig.add_subplot(1, 2, 2)
                 color_image0 = transforms.functional.to_pil_image(F_q[0], mode='RGB')  # grd
                 color_image0 = np.array(color_image0)
                 color_image1 = transforms.functional.to_pil_image(F_ref[0], mode='RGB')  # sat
@@ -211,7 +211,7 @@ class TwoViewRefiner(BaseModel):
         # if w_unc is not None:
         #     loss = loss * w_unc
 
-        return torch.mean(loss, dim=-1)
+        return torch.sum(loss, dim=-1)
 
 
         # use w_loss???

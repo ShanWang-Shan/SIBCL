@@ -289,7 +289,7 @@ class Camera(TensorWrapper):
             self.size*s,
             self.f*s,
             (self.c+0.5)*s-0.5,
-            self.dist], -1)
+            self.dist, self._data[:,10:]], -1)
         return self.__class__(data)
 
     def crop(self, left_top: Tuple[float], size: Tuple[int]):
@@ -300,7 +300,7 @@ class Camera(TensorWrapper):
             size,
             self.f,
             self.c - left_top,
-            self.dist], -1)
+            self.dist, self._data[:,10:]], -1)
         return self.__class__(data)
 
     @autocast
