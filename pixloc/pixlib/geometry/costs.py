@@ -75,7 +75,7 @@ class DirectAbsoluteCost:
 
         if weight != None:
             weight = weight.squeeze(-1).masked_fill(~valid, 0.)
-            #weight = torch.nn.functional.normalize(weight, dim=1) #??
+            weight = torch.nn.functional.normalize(weight, p=float('inf'), dim=1) #??
 
         if 1: #self.normalize:
             F_p2D = torch.nn.functional.normalize(F_p2D_raw, dim=-1)
