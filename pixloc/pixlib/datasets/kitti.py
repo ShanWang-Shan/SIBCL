@@ -210,6 +210,11 @@ class _Dataset(Dataset):
                 else:
                     self.file_name.append(line)
 
+                    if 1: # for debug
+                        if split == 'val':
+                            if len(self.file_name) > 500:
+                                break
+
         #self.file_name = []
         # test_df = pd.read_csv(os.path.join(self.root, test_csv_file_name))
         # ignore_df = pd.read_csv(os.path.join(self.root, ignore_csv_file_name))
