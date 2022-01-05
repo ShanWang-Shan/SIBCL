@@ -27,7 +27,8 @@ from pixloc.pixlib.geometry import Camera, Pose
 
 visualise_debug = True
 
-root_dir = '/data/Kitti'#'/students/u6617221/shan/data'
+root_dir = '/data/Kitti'
+#root_dir = '/students/u6617221/shan/data'
 test_csv_file_name = 'test.csv'
 ignore_csv_file_name = 'ignore.csv'
 satmap_dir = 'satmap_20'
