@@ -10,6 +10,7 @@ import torch.nn as nn
 
 from .base_model import BaseModel
 from .utils import checkpointed
+from copy import deepcopy
 
 
 class DecoderBlock(nn.Module):
@@ -151,31 +152,44 @@ class UNet(BaseModel):
             if conf.compute_uncertainty:
                 uncertainty.append(AdaptationBlock(input_, 1))
         self.adaptation = nn.ModuleList(adaptation)
+
+        # add by shan, for sat images
+        self.add_sat_unet()
+
         self.scales = [2**s for s in conf.output_scales]
         if conf.compute_uncertainty:
             self.uncertainty = nn.ModuleList(uncertainty)
 
     def _forward(self, data):
+        if 'type' in data.keys() and data['type'] == 'sat':
+            encoder = self.sat_encoder
+            decoder = self.sat_decoder
+            adaptation = self.sat_adaptation
+        else:
+            encoder = self.encoder
+            decoder = self.decoder
+            adaptation = self.adaptation
+
         image = data['image']
         mean, std = image.new_tensor(self.mean), image.new_tensor(self.std)
         image = (image - mean[:, None, None]) / std[:, None, None]
 
         skip_features = []
         features = image
-        for block in self.encoder:
+        for block in encoder:
             features = block(features)
             skip_features.append(features)
 
         if self.conf.decoder:
             pre_features = [skip_features[-1]]
-            for block, skip in zip(self.decoder, skip_features[:-1][::-1]):
+            for block, skip in zip(decoder, skip_features[:-1][::-1]):
                 pre_features.append(block(pre_features[-1], skip))
             pre_features = pre_features[::-1]  # fine to coarse
         else:
             pre_features = skip_features
 
         out_features = []
-        for adapt, i in zip(self.adaptation, self.conf.output_scales):
+        for adapt, i in zip(adaptation, self.conf.output_scales):
             out_features.append(adapt(pre_features[i]))
         pred = {'feature_maps': out_features}
 
@@ -194,3 +208,8 @@ class UNet(BaseModel):
 
     def metrics(self, pred, data):
         raise NotImplementedError
+
+    def add_sat_unet(self):
+        self.sat_encoder = deepcopy(self.encoder)
+        self.sat_decoder = deepcopy(self.decoder)
+        self.sat_adaptation = deepcopy(self.adaptation)

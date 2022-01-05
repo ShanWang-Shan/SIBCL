@@ -22,7 +22,7 @@ import cv2
 logger = logging.getLogger(__name__)
 
 # add by shan
-share_weight = False
+share_weight = False #
 cal_confidence = 2 # 0: no confidence, 1:only ref 2: only query, 3:both query and ref
 no_opt = True
 l1_loss = True
@@ -53,8 +53,8 @@ class TwoViewRefiner(BaseModel):
     def _init(self, conf):
         self.extractor = get_model(conf.extractor.name)(conf.extractor)
         assert hasattr(self.extractor, 'scales')
-        if not share_weight:
-            self.extractor_sat = deepcopy(self.extractor) # add by shan
+        # if not share_weight:
+        #     self.extractor_sat = deepcopy(self.extractor) # add by shan
 
         Opt = get_model(conf.optimizer.name)
         if conf.duplicate_optimizer_per_scale:
@@ -74,25 +74,29 @@ class TwoViewRefiner(BaseModel):
                              'use the `init_pose` config of the dataloader.')
 
     def _forward(self, data):
-        def process_siamese(data_i):
+        def process_siamese(data_i, data_type):
+            if data_type == 'ref':
+                data_i['type'] = 'sat'
             pred_i = self.extractor(data_i)
             pred_i['camera_pyr'] = [data_i['camera'].scale(1/s)
                                     for s in self.extractor.scales]
             return pred_i
 
-        # change by shan
-        if share_weight: 
-            pred = {i: process_siamese(data[i]) for i in ['ref', 'query']}
-        else:
+        pred = {i: process_siamese(data[i], i) for i in ['ref', 'query']}
 
-            # add by shan for satellite image extractor
-            def process_sat(data_i):
-                pred_i = self.extractor_sat(data_i)
-                pred_i['camera_pyr'] = [data_i['camera'].scale(1/s)
-                                    for s in self.extractor_sat.scales]
-                return pred_i
-            pred = {i: process_siamese(data[i]) for i in ['query']}
-            pred.update({i: process_sat(data[i]) for i in ['ref']})
+        # # change by shan
+        # if share_weight:
+        #     pred = {i: process_siamese(data[i]) for i in ['ref', 'query']}
+        # else:
+        #
+        #     # add by shan for satellite image extractor
+        #     def process_sat(data_i):
+        #         pred_i = self.extractor_sat(data_i, sat_flag=True)
+        #         pred_i['camera_pyr'] = [data_i['camera'].scale(1/s)
+        #                             for s in self.extractor_sat.scales]
+        #         return pred_i
+        #     pred = {i: process_siamese(data[i]) for i in ['query']}
+        #     pred.update({i: process_sat(data[i]) for i in ['ref']})
 
         p3D_query = data['query']['points3D']
         T_init = data['T_q2r_init']
@@ -207,27 +211,18 @@ class TwoViewRefiner(BaseModel):
 
         # compute the cost and aggregate the weights
         cost = (res ** 2).sum(-1)
+        # cost, w_loss, _ = opt.loss_fn(cost) ??
         loss = cost * valid.float()
-        # if w_unc is not None:
-        #     loss = loss * w_unc
+        if w_unc is not None:
+            # w_unc_mean = torch.sum(w_unc,dim=1)/torch.sum(w_unc>0,dim=1) #B
+            loss = loss * w_unc
 
         return torch.sum(loss, dim=-1)
 
-
-        # use w_loss???
-        #cost, w_loss, _ = opt.loss_fn(cost)
-        #loss = w_loss * valid.float()
-        #if w_unc is not None:
-        #    loss = loss * w_unc
-
-        #return torch.sum(loss,dim=-1)
-
-
     # add by shan for satellite image extractor
     def add_sat_extractor(self):
-        self.extractor_sat = deepcopy(self.extractor)
-        #for param in self.extractor_sat.parameters():
-        #    param.requires_grad = True
+        self.extractor.add_sat_unet()
+        # self.extractor_sat = deepcopy(self.extractor)
 
     def loss(self, pred, data):
         cam_ref = data['ref']['camera']
