@@ -215,7 +215,11 @@ class TwoViewRefiner(BaseModel):
         cost, w_loss, _ = opt.loss_fn(cost)
         loss = cost * valid.float()
         if w_unc is not None:
-            loss = loss * w_unc
+            # do not gradient back to w_unc
+            weight = deepcopy(w_unc)
+            weight.requires_grad = False
+
+            loss = loss * weight
 
         return torch.sum(loss, dim=-1)
 
