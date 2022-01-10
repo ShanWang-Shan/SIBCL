@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # add by shan
 share_weight = False #
 cal_confidence = 3 # 0: no confidence, 1:only ref 2: only query, 3:both query and ref
-no_opt = True
+no_opt = False 
 l1_loss = True
 
 class TwoViewRefiner(BaseModel):
@@ -211,10 +211,9 @@ class TwoViewRefiner(BaseModel):
 
         # compute the cost and aggregate the weights
         cost = (res ** 2).sum(-1)
-        # cost, w_loss, _ = opt.loss_fn(cost) ??
+        cost, w_loss, _ = opt.loss_fn(cost)
         loss = cost * valid.float()
         if w_unc is not None:
-            # w_unc_mean = torch.sum(w_unc,dim=1)/torch.sum(w_unc>0,dim=1) #B
             loss = loss * w_unc
 
         return torch.sum(loss, dim=-1)

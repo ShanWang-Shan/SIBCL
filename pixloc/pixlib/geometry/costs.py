@@ -77,7 +77,7 @@ class DirectAbsoluteCost:
             weight = weight.squeeze(-1).masked_fill(~valid, 0.)
             weight = torch.nn.functional.normalize(weight, p=float('inf'), dim=1) #??
 
-        if 1: #self.normalize:
+        if self.normalize: # huge memory
             F_p2D = torch.nn.functional.normalize(F_p2D_raw, dim=-1)
         else:
             F_p2D = F_p2D_raw
@@ -106,7 +106,7 @@ class DirectAbsoluteCost:
         J_p3D_T = T_q2r.J_transform(p3D_r)
         J_p2D_p3D, _ = camera.J_world2image(p3D_r)
 
-        if 1:#self.normalize:
+        if self.normalize:
             J_f_p2D = J_normalization(F_p2D_raw) @ J_f_p2D
 
         J_p2D_T = J_p2D_p3D @ J_p3D_T
