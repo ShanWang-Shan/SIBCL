@@ -117,18 +117,19 @@ class TwoViewRefiner(BaseModel):
 
             # debug original image
             if 0:
-                _,_,H,W = pred['ref']['feature_maps'][i].size()
-                F_ref = nnF.interpolate(data['ref']['image'], size=(H,W), mode='bilinear')
-                _, _, H, W = pred['query']['feature_maps'][i].size()
-                F_q = nnF.interpolate(data['query']['image'], size=(H,W), mode='bilinear')
+                # _,_,H,W = pred['ref']['feature_maps'][i].size()
+                # F_ref = nnF.interpolate(data['ref']['image'], size=(H,W), mode='bilinear')
+                # _, _, H, W = pred['query']['feature_maps'][i].size()
+                # F_q = nnF.interpolate(data['query']['image'], size=(H,W), mode='bilinear')
 
                 fig = plt.figure(figsize=plt.figaspect(0.5))
                 ax1 = fig.add_subplot(1, 2, 1)
                 ax2 = fig.add_subplot(1, 2, 2)
-                color_image0 = transforms.functional.to_pil_image(F_q[0], mode='RGB')  # grd
-                color_image0 = np.array(color_image0)
-                color_image1 = transforms.functional.to_pil_image(F_ref[0], mode='RGB')  # sat
-                color_image1 = np.array(color_image1)
+                # color_image0 = transforms.functional.to_pil_image(F_q[0], mode='RGB')  # grd
+                # color_image0 = np.array(color_image0)
+                # color_image1 = transforms.functional.to_pil_image(F_ref[0], mode='RGB')  # sat
+                # color_image1 = np.array(color_image1)
+                color_image1, color_image0 = features_to_RGB(F_ref[0].cpu().numpy(), F_q[0].cpu().numpy(), skip=1)
 
                 # sat
                 p3D_ref = data['T_q2r_gt'] * data['query']['points3D']
