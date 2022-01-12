@@ -27,8 +27,8 @@ from pixloc.pixlib.geometry import Camera, Pose
 
 visualise_debug = True
 
-root_dir = '/data/Kitti'
-#root_dir = '/students/u6617221/shan/data'
+#root_dir = '/data/Kitti'
+root_dir = '/students/u6617221/shan/data'
 test_csv_file_name = 'test.csv'
 ignore_csv_file_name = 'ignore.csv'
 satmap_dir = 'satmap_20'
@@ -193,7 +193,7 @@ class _Dataset(Dataset):
             NED_coords_satellite[i, 0] = xEast
             NED_coords_satellite[i, 1] = yNorth
             NED_coords_satellite[i, 2] = zUp
-        self.neigh = NearestNeighbors(n_neighbors=1)
+        self.neigh = NearestNeighbors(n_neighbors=1)    
         self.neigh.fit(NED_coords_satellite)
 
         # read form txt files
@@ -213,8 +213,12 @@ class _Dataset(Dataset):
 
                     if 1: # for debug
                         if split == 'val':
-                            if len(self.file_name) > 500:
+                            if len(self.file_name) > 5:
                                 break
+
+        if 0:  # for debug
+            if split == 'train':
+                self.file_name = random.sample(self.file_name, 5000)
 
         #self.file_name = []
         # test_df = pd.read_csv(os.path.join(self.root, test_csv_file_name))
@@ -410,10 +414,10 @@ class _Dataset(Dataset):
         }
 
         # ramdom shift translation and ratation on yaw
-        YawShiftRange = 15 * np.pi / 180  # in 10 degree
+        YawShiftRange = 6 * np.pi / 180  # in 10 degree
         yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
         R_yaw = torch.tensor([[np.cos(yaw), 0, np.sin(yaw)], [0, 1, 0], [-np.sin(yaw), 0, np.cos(yaw)]])
-        TShiftRange = 5  # in 5 meter
+        TShiftRange = 3  # in 5 meter
         T = 2 * TShiftRange * np.random.rand((3)) - TShiftRange
         T[1] = 0  # no shift on height
 
