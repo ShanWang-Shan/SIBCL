@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 share_weight = False #
 cal_confidence = 3 # 0: no confidence, 1:only ref 2: only query, 3:both query and ref
 no_opt = False 
-l1_loss = True
+l1_loss = 2 # 0:without l1 loss, 1: with gt l1 loss, 2: with gt-init l1 loss
 
 class TwoViewRefiner(BaseModel):
     default_conf = {
@@ -199,8 +199,13 @@ class TwoViewRefiner(BaseModel):
 
             # add by shan, query & reprojection GT error, for query unet back propogate
             if l1_loss and not share_weight:
-                loss = self.preject_l1loss(opt, p3D_query, F_ref, F_q, data['T_q2r_gt'], cam_ref, mask=mask, W_ref_query=W_ref_q)
-                pred['L1_loss'].append(loss)
+                loss_gt = self.preject_l1loss(opt, p3D_query, F_ref, F_q, data['T_q2r_gt'], cam_ref, mask=mask, W_ref_query=W_ref_q)
+                if l1_loss == 1:
+                    pred['L1_loss'].append(loss_gt)
+                else:
+                    loss_init = self.preject_l1loss(opt, p3D_query, F_ref, F_q, data['T_q2r_init'], cam_ref, mask=mask, W_ref_query=W_ref_q)
+                    diff_loss = (loss_gt-logg_init).clamp(min=-self.conf.clamp_error)
+                    pred['L1_loss'].append(diff_loss)
 
         return pred
 

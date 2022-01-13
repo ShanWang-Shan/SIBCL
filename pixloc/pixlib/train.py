@@ -302,7 +302,7 @@ def training(rank, conf, output_dir, args):
 
             # combine total loss(RT) & L1 loss, add by shan 
             #loss = torch.mean(losses['total'])
-            loss = torch.mean(losses['total']) + 16.7*torch.mean(losses['L1_loss'])  # total is total of opt RT losses
+            loss = torch.mean(losses['total']) + torch.mean(losses['L1_loss'])  # total is total of opt RT losses
 
             do_backward = loss.requires_grad
             if args.distributed:
@@ -415,7 +415,7 @@ def main_worker(rank, conf, output_dir, args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--experiment', type=str, default='pixloc_kitti')
+    parser.add_argument('--experiment', type=str, default='pixloc_kitti_diff_l1')
     parser.add_argument('--conf', type=str)
     parser.add_argument('--overfit', action='store_true', default=False)
     parser.add_argument('--restore', action='store_true', default=True)
@@ -455,5 +455,5 @@ if __name__ == '__main__':
             main_worker, nprocs=args.n_gpus,
             args=(conf, output_dir, args))
     else:
-        os.environ["CUDA_VISIBLE_DEVICES"] = '6'
+        os.environ["CUDA_VISIBLE_DEVICES"] = '5'
         main_worker(0, conf, output_dir, args)
