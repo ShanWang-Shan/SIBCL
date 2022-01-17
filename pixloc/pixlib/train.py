@@ -27,6 +27,7 @@ from pixloc.settings import TRAINING_PATH
 from pixloc import logger
 
 import numpy as np
+import datetime
 
 
 default_train_conf = {
@@ -181,8 +182,8 @@ def training(rank, conf, output_dir, args):
         # assert not Path(lock).exists(), lock
         torch.distributed.init_process_group(
                 backend='nccl', world_size=args.n_gpus, rank=device, #'gloo'
-                init_method= 'file://'+str(args.lock_file))
-        torch.cuda.set_device(device)
+                init_method= 'file://'+str(args.lock_file),timeout=datetime.timedelta(seconds=60))
+        #torch.cuda.set_device(device)
 
         # adjust batch size and num of workers since these are per GPU
         if 'batch_size' in data_conf:
@@ -239,8 +240,8 @@ def training(rank, conf, output_dir, args):
     if args.distributed:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
         model = torch.nn.parallel.DistributedDataParallel(
-            model, device_ids=[device])# find_unused_parameters=True)
-        #model._set_static_graph() # add by shan
+            model, device_ids=[device])#, find_unused_parameters=True)
+        model._set_static_graph() # add by shan
     if rank == 0:
         logger.info(f'Model: \n{model}')
     torch.backends.cudnn.benchmark = True
@@ -301,8 +302,9 @@ def training(rank, conf, output_dir, args):
             losses = loss_fn(pred, data)
 
             # combine total loss(RT) & L1 loss, add by shan 
-            #loss = torch.mean(losses['total'])
-            loss = torch.mean(losses['total']) + torch.mean(losses['L1_loss'])  # total is total of opt RT losses
+            RT_loss_weight = 1 
+            L1_loss_weight = 30 # 16.67/0.6 
+            loss = RT_loss_weight*torch.mean(losses['total']) + L1_loss_weight*torch.mean(losses['L1_loss'])  # total is total of opt RT losses
 
             do_backward = loss.requires_grad
             if args.distributed:
@@ -415,7 +417,7 @@ def main_worker(rank, conf, output_dir, args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--experiment', type=str, default='pixloc_kitti_diff_l1')
+    parser.add_argument('--experiment', type=str, default='pixloc_kitti')
     parser.add_argument('--conf', type=str)
     parser.add_argument('--overfit', action='store_true', default=False)
     parser.add_argument('--restore', action='store_true', default=True)
@@ -443,9 +445,11 @@ if __name__ == '__main__':
         os.environ["MASTER_PORT"] = '1250'
 
         # debug by shan
-        #os.environ["NCCL_DEBUG"] = 'INFO'
-        #os.environ["NCCL_DEBUG_SUBSYS"] = 'ALL'
+        os.environ["NCCL_DEBUG"] = 'INFO'
+        os.environ["NCCL_DEBUG_SUBSYS"] = 'ALL'
+        os.environ["NCCL_LL_THRESHOLD"] = '0'
         #os.environ["NCCL_BLOCKING_WAIT"] = '1'
+        os.environ["TORCH_DISTRIBUTED_DEBUG"] = 'INFO'
 
         args.lock_file = output_dir / "distributed_lock"
         if args.lock_file.exists():
@@ -455,5 +459,5 @@ if __name__ == '__main__':
             main_worker, nprocs=args.n_gpus,
             args=(conf, output_dir, args))
     else:
-        os.environ["CUDA_VISIBLE_DEVICES"] = '5'
+        os.environ["CUDA_VISIBLE_DEVICES"] = '7'
         main_worker(0, conf, output_dir, args)

@@ -204,12 +204,8 @@ class TwoViewRefiner(BaseModel):
                     pred['L1_loss'].append(loss_gt)
                 else:
                     loss_init = self.preject_l1loss(opt, p3D_query, F_ref, F_q, data['T_q2r_init'], cam_ref, mask=mask, W_ref_query=W_ref_q)
-<<<<<<< HEAD
-                    diff_loss = (loss_gt-loss_init).clamp(min=-self.conf.clamp_error/len(self.extractor.scales)) # no small than -RT loss
-=======
                     #diff_loss = (loss_gt-loss_init).clamp(min=-self.conf.clamp_error)
                     diff_loss = torch.log(1 + torch.exp(loss_gt-loss_init))
->>>>>>> 658f5f9b458a616ca4aee936a8432beb6ed7c83a
                     pred['L1_loss'].append(diff_loss)
 
         return pred
