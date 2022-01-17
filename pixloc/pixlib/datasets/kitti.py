@@ -211,14 +211,17 @@ class _Dataset(Dataset):
                 else:
                     self.file_name.append(line)
 
-                    if 1: # for debug
+                    if 0: # for debug
                         if split == 'val':
                             if len(self.file_name) > 5:
                                 break
 
-        if 0:  # for debug
+        if 1:  # for debug
             if split == 'train':
-                self.file_name = random.sample(self.file_name, 5000)
+                self.file_name = random.sample(self.file_name, len(self.file_name)//3)
+
+            if split == 'val':
+                self.file_name = random.sample(self.file_name, len(self.file_name)//3)
 
         #self.file_name = []
         # test_df = pd.read_csv(os.path.join(self.root, test_csv_file_name))
