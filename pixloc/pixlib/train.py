@@ -357,8 +357,8 @@ def training(rank, conf, output_dir, args):
                     break
 
             results = 0
-            #if (stop or it == (len(train_loader) - 1)):
-            if (stop or ((it % conf.train.eval_every_iter == 0) and it!=0)):
+            if (stop or it == (len(train_loader) - 1)):
+            #if (stop or ((it % conf.train.eval_every_iter == 0) and it!=0)):
             # if (((it % conf.train.eval_every_iter == 0) and it!=0) or stop
             #       or it == (len(train_loader)-1)):
                 with fork_rng(seed=conf.train.seed):
