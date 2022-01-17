@@ -204,7 +204,8 @@ class TwoViewRefiner(BaseModel):
                     pred['L1_loss'].append(loss_gt)
                 else:
                     loss_init = self.preject_l1loss(opt, p3D_query, F_ref, F_q, data['T_q2r_init'], cam_ref, mask=mask, W_ref_query=W_ref_q)
-                    diff_loss = (loss_gt-logg_init).clamp(min=-self.conf.clamp_error)
+                    #diff_loss = (loss_gt-loss_init).clamp(min=-self.conf.clamp_error)
+                    diff_loss = torch.log(1 + torch.exp(loss_gt-loss_init))
                     pred['L1_loss'].append(diff_loss)
 
         return pred
@@ -290,11 +291,11 @@ class TwoViewRefiner(BaseModel):
         def scaled_pose_error(T_q2r):
             err_R, err_t = (T_q2r @ T_r2q_gt).magnitude()
             err_x = (T_q2r @ T_r2q_gt).magnitude_lateral()
-            if self.conf.normalize_dt:
-                err_t /= torch.norm(T_r2q_gt.t, dim=-1)
-            # change for validate lateral error only, change by shan
-            # return err_R, err_t
-                err_x /= T_r2q_gt.magnitude_lateral()
+            # if self.conf.normalize_dt:
+            #     err_t /= torch.norm(T_r2q_gt.t, dim=-1)
+            # # change for validate lateral error only, change by shan
+            # # return err_R, err_t
+            #     err_x /= T_r2q_gt.magnitude_lateral()
             return err_R, err_x
 
         metrics = {}

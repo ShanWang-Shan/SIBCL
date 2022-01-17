@@ -219,9 +219,9 @@ class Pose(TensorWrapper):
     def magnitude_lateral(self) -> Tuple[torch.Tensor]:
         '''Magnitude of the SE(3) transformation.
         Returns:
-            dx: translation distance in meters.
+            dy: translation distance in meters.
         '''
-        return torch.abs(self.t[..., -3])
+        return torch.abs(self.t[..., -2])
 
     def __repr__(self):
         return f'Pose: {self.shape} {self.dtype} {self.device}'
