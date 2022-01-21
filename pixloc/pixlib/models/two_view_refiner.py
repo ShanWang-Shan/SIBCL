@@ -299,15 +299,15 @@ class TwoViewRefiner(BaseModel):
             # # change for validate lateral error only, change by shan
             # # return err_R, err_t
             #     err_x /= T_r2q_gt.magnitude_lateral()
-            return err_R, err_x
+            return err_R, err_t, err_x
 
         metrics = {}
         for i, T_opt in enumerate(pred['T_q2r_opt']):
             err = scaled_pose_error(T_opt)
-            metrics[f'R_error/{i}'], metrics[f't_error/{i}'] = err
-        metrics['R_error'], metrics['t_error'] = err
+            metrics[f'R_error/{i}'], metrics[f't_error/{i}'], metrics[f'x_error/{i}']  = err
+        metrics['R_error'], metrics['t_error'], metrics['x_error']  = err
 
         err_init = scaled_pose_error(pred['T_q2r_init'][0])
-        metrics['R_error/init'], metrics['t_error/init'] = err_init
+        metrics['R_error/init'], metrics['t_error/init'], metrics['x_error/init'] = err_init
 
         return metrics

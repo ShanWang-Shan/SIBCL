@@ -21,8 +21,7 @@ from models import get_model
 from utils.stdout_capturing import capture_outputs
 from pixloc.pixlib.utils.tools import AverageMetric, MedianMetric, set_seed, fork_rng
 from pixloc.pixlib.utils.tensor import batch_to_device
-from pixloc.pixlib.utils.experiments import (
-    delete_old_checkpoints, get_last_checkpoint, get_best_checkpoint)
+from pixloc.pixlib.utils.experiments import (delete_old_checkpoints, get_last_checkpoint, get_best_checkpoint)
 from pixloc.settings import TRAINING_PATH
 from pixloc import logger
 
@@ -58,6 +57,7 @@ def do_evaluation(model, loader, device, loss_fn, metrics_fn, conf, pbar=True):
     total = 0
     errR = []
     errt = []
+    errx = []
     for data in tqdm(loader, desc='Evaluation', ascii=True, disable=not pbar):
         data = batch_to_device(data, device, non_blocking=True)
         with torch.no_grad():
@@ -65,7 +65,11 @@ def do_evaluation(model, loader, device, loss_fn, metrics_fn, conf, pbar=True):
             losses = loss_fn(pred, data)
             metrics = metrics_fn(pred, data)
 
-            if metrics['t_error'].item() < 1 and metrics['R_error'].item() < 2:
+            errR.append(metrics['R_error'].item())
+            errt.append(metrics['t_error'].item())
+            errx.append(metrics['x_error'].item())
+
+            if metrics['x_error'].item() < 1 and metrics['R_error'].item() < 2:
                 acc += 1
             total += 1
 
@@ -81,6 +85,7 @@ def do_evaluation(model, loader, device, loss_fn, metrics_fn, conf, pbar=True):
                 results[k+'_median'].update(v)
     results = {k: results[k].compute() for k in results}
     results['acc'] = acc / total
+    logger.info(f'everage errR:{sum(errR)/len(errR)}, errT:{sum(errt)/len(errt)}, errX:{sum(errx)/len(errx)}')
     return results
 
 
@@ -183,7 +188,7 @@ def training(rank, conf, output_dir, args):
         torch.distributed.init_process_group(
                 backend='nccl', world_size=args.n_gpus, rank=device, #'gloo'
                 init_method= 'file://'+str(args.lock_file),timeout=datetime.timedelta(seconds=60))
-        #torch.cuda.set_device(device)
+        torch.cuda.set_device(device)
 
         # adjust batch size and num of workers since these are per GPU
         if 'batch_size' in data_conf:
@@ -303,7 +308,7 @@ def training(rank, conf, output_dir, args):
 
             # combine total loss(RT) & L1 loss, add by shan 
             RT_loss_weight = 1 
-            L1_loss_weight = 30 # 16.67/0.6 
+            L1_loss_weight = 50 # 16.67/0.6 
             loss = RT_loss_weight*torch.mean(losses['total']) + L1_loss_weight*torch.mean(losses['L1_loss'])  # total is total of opt RT losses
 
             do_backward = loss.requires_grad
@@ -438,15 +443,15 @@ if __name__ == '__main__':
         OmegaConf.save(conf, str(output_dir / 'config.yaml'))
 
     if args.distributed:
-        args.n_gpus = 2 #torch.cuda.device_count()
-        os.environ["CUDA_VISIBLE_DEVICES"] = '0,1'
+        args.n_gpus = 6 #torch.cuda.device_count()
+        os.environ["CUDA_VISIBLE_DEVICES"] = '0,1,2,3,4,5'
         os.environ["MASTER_ADDR"] = 'localhost'
         os.environ["MASTER_PORT"] = '1250'
 
         # debug by shan
-        os.environ["NCCL_DEBUG"] = 'INFO'
-        os.environ["NCCL_DEBUG_SUBSYS"] = 'ALL'
-        os.environ["NCCL_LL_THRESHOLD"] = '0'
+        #os.environ["NCCL_DEBUG"] = 'INFO'
+        #os.environ["NCCL_DEBUG_SUBSYS"] = 'ALL'
+        #os.environ["NCCL_LL_THRESHOLD"] = '0'
         #os.environ["NCCL_BLOCKING_WAIT"] = '1'
         os.environ["TORCH_DISTRIBUTED_DEBUG"] = 'INFO'
 
@@ -458,5 +463,5 @@ if __name__ == '__main__':
             main_worker, nprocs=args.n_gpus,
             args=(conf, output_dir, args))
     else:
-        os.environ["CUDA_VISIBLE_DEVICES"] = '7'
+        os.environ["CUDA_VISIBLE_DEVICES"] = '6'
         main_worker(0, conf, output_dir, args)
