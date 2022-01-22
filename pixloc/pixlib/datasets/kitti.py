@@ -27,8 +27,8 @@ from pixloc.pixlib.geometry import Camera, Pose
 
 visualise_debug = True
 
-#root_dir = '/data/Kitti'
-root_dir = '/students/u6617221/shan/data'
+root_dir = '/data/Kitti'
+#root_dir = '/students/u6617221/shan/data'
 test_csv_file_name = 'test.csv'
 ignore_csv_file_name = 'ignore.csv'
 satmap_dir = 'satmap_20'
@@ -152,29 +152,50 @@ def project_lidar_to_cam(velodyne, camera_P, camera_k, camera_R, camera_t, lidar
     uv_mask = u_mask & v_mask
     return points2d[:, uv_mask], points3d[:, uv_mask], velodyne_trimed[:, uv_mask]
 
-def project_lidar_to_sat(velodyne_imu, imu_rot, meter_per_pixel, body_location):
-    # imu to sat
-    imu2sat = np.eye(4)
-    imu2sat[1,1] = -1 # y=-y
-    imu2sat[2,2] = -1 # z=-z
-    imu2sat = imu2sat@imu_rot
-    velodyne_sat_3d = imu2sat @ velodyne_imu
-    #velodyne_sat_3d[2,:] = np.ones_like(velodyne_sat_3d[2,:] )
+def project_lidar_to_sat(cam_3d, imu_rot, meter_per_pixel, location):
+    # cam to sat
+    cam2sat = np.eye(4)
+    cam2sat[1,1] = -1 # y=-y
+    cam2sat[2,2] = -1 # z=-z
+    cam2sat = cam2sat@imu_rot
+    sat_3d = cam2sat @ cam_3d
 
-    # convert the velodyne_world to pixels, with respect to the GPS/IMU pixel location
-    velodyne_sat_2d = velodyne_sat_3d[:2, :] / meter_per_pixel
-    #velodyne_world_pixels[1, :] = - velodyne_world_pixels[1, :]
-    velodyne_sat_2d = velodyne_sat_2d + np.asarray(body_location)[:, None]
+    # convert the world to pixels, with respect to the pixel location
+    sat_2d = sat_3d[:2, :] / meter_per_pixel
+    sat_2d = sat_2d + np.asarray(location)[:, None]
     # visible mask
-    u_mask = (velodyne_sat_2d[0] < satellite_ori_size) & (velodyne_sat_2d[0] > 0)
-    v_mask = (velodyne_sat_2d[1] < satellite_ori_size) & (velodyne_sat_2d[1] > 0)
+    u_mask = (sat_2d[0] < satellite_ori_size) & (sat_2d[0] > 0)
+    v_mask = (sat_2d[1] < satellite_ori_size) & (sat_2d[1] > 0)
     sat_mask = u_mask & v_mask
     # matching 3D locations
-    velodyne_sat_2d = velodyne_sat_2d[:, sat_mask].T
-    velodyne_sat_3d = velodyne_sat_3d[:3, sat_mask].T
-    velodyne_imu = velodyne_imu[:3, sat_mask].T
+    sat_2d = sat_2d[:, sat_mask].T
+    sat_3d = sat_3d[:3, sat_mask].T
+    cam_3d = cam_3d[:3, sat_mask].T
 
-    return velodyne_sat_2d, velodyne_sat_3d, velodyne_imu, sat_mask, imu2sat
+    return sat_2d, sat_3d, cam_3d
+
+def farthest_point_sample(points, number):
+    """
+       Input:
+           points: point data, [N, *]
+           number: number of samples
+       Return:
+           centroids: sampled point index[N]
+       """
+    centroids = torch.zeros(number).int()
+    distance = torch.ones_like(points[:,0]) * 1e5  # init distance
+
+    farthest = random.randint(0,len(points)-1)  # randam select the first points
+
+    for i in range(number):
+        centroids[i] = farthest  # recoder the farthest point
+        centroid = points[farthest, :]
+        dist = torch.sum((points - centroid) ** 2, -1)  # cal the distance with centroid point
+        mask = dist < distance
+        distance[mask] = dist[mask]  # update distance
+        farthest = torch.max(distance, -1)[1]
+
+    return centroids
 
 class _Dataset(Dataset):
     def __init__(self, conf, split):
@@ -216,56 +237,12 @@ class _Dataset(Dataset):
                             if len(self.file_name) > 5:
                                 break
 
-        if 1:  # for debug
+        if 0:  # for debug
             if split == 'train':
-                self.file_name = random.sample(self.file_name, len(self.file_name)//3)
+                self.file_name = random.sample(self.file_name, len(self.file_name)//2)
 
             if split == 'val':
-                self.file_name = random.sample(self.file_name, len(self.file_name)//3)
-
-        #self.file_name = []
-        # test_df = pd.read_csv(os.path.join(self.root, test_csv_file_name))
-        # ignore_df = pd.read_csv(os.path.join(self.root, ignore_csv_file_name))
-        #
-        # # get original image & location information
-        # dirs = os.listdir(os.path.join(self.root, grdimage_dir))
-        # for director in dirs:
-        #     # director: such as 2011_09_26
-        #     if '2011' not in director:
-        #         continue
-        #
-        #     # get drive dir
-        #     subdirs = os.listdir(os.path.join(self.root, grdimage_dir, director))
-        #     for subdir in subdirs:
-        #         # subdir: such as 2011_09_26_drive_0019_sync
-        #         if 'drive' not in subdir:
-        #             continue
-        #
-        #         if subdir in ignore_df.values:
-        #             continue
-        #
-        #         # check train & val from split
-        #         if split=='train':
-        #             # train, ignore subdir in test.csv
-        #             if subdir in test_df.values:
-        #                 continue
-        #         else:
-        #             # test, ignore subdir not in test.csv
-        #             if subdir not in test_df.values:
-        #                 continue
-        #
-        #         items = os.listdir(os.path.join(self.root, grdimage_dir, director, subdir, left_color_camera_dir))
-        #
-        #         tmp_file_name = []
-        #         # order items
-        #         items.sort()
-        #         for item in items:
-        #             if 'png' not in item.lower():
-        #                 continue
-        #
-        #             # file name
-        #             f_name = os.path.join(director, subdir, item)
-        #             self.file_name.append(f_name)
+                self.file_name = random.sample(self.file_name, len(self.file_name)//2)
 
     def __len__(self):
         return len(self.file_name)
@@ -273,12 +250,6 @@ class _Dataset(Dataset):
     def __getitem__(self, idx):
         # read cemera k matrix from camera calibration files, day_dir is first 10 chat of file name
         file_name = self.file_name[idx]
-
-        # debug
-        #file_name = '2011_09_26/2011_09_26_drive_0002_sync/0000000034.png'
-        #file_name = '2011_09_30/2011_09_30_drive_0016_sync/0000000075.png'
-
-
         day_dir = file_name[:10]
         drive_dir = file_name[:38]
         image_no = file_name[38:]
@@ -312,22 +283,6 @@ class _Dataset(Dataset):
         velodyne = np.fromfile(velodyne_file_name, dtype=np.float32).reshape(-1, 4)
         velodyne[:, 3] = 1.0
 
-        # load depth_map
-        # depth_map_name = os.path.join(depth_map_dir, drive_dir,image_no.lower())
-        #
-        # with Image.open(depth_map_name, 'r') as depthMap:
-        #     depth_img = depthMap.convert('I')
-        #     depth_map = self.depth_transform(np.array(depth_img))
-        #     depth_map = depth_map / 256
-        #     depth_map = 0.54 * 718.3351 / depth_map  # in meter #(left_camera_k[0,0]+left_camera_k[1,1])/2
-        #     depth_map = torch.where(depth_map > 80., torch.tensor(80.),depth_map)  # ignore more than 80 meter
-        #     # turn meter to ratio on sat map
-        #     meter_per_pixel = utils.get_meter_per_pixel()
-        #     depth_map /= meter_per_pixel  # pixel
-        #     satmap_size = utils.get_process_satmap_edge()
-        #     depth_map /= satmap_size / 2  # normalize to [0~1] # need to ignore depth more than 1???
-        #     grd_left = torch.cat([grd_left, depth_map.float()], dim=0)
-
         # ground images, left color camera
         left_img_name = os.path.join(self.root, grdimage_dir, drive_dir, left_color_camera_dir, image_no.lower())
         with Image.open(left_img_name, 'r') as GrdImg:
@@ -338,7 +293,7 @@ class _Dataset(Dataset):
             grd_left = transforms.functional.pad(grd_left, (0, 0, grd_pad_size[1]-grd_ori_W,grd_pad_size[0]-grd_ori_H))
             grd_left = ToTensor(grd_left)
 
-        # project these lidar points to image
+        # project these lidar points to camera coordinate
         # vis_2d: lidar points projected 2D position in the image
         # velodyne_local: lidar points (3D) which are visible to the image, in the velodyne coordinate system
         _, cam_3d, _ = project_lidar_to_cam(velodyne, camera_P, camera_k, camera_R, camera_t,
@@ -374,8 +329,8 @@ class _Dataset(Dataset):
         body_location_y = y_sg + satellite_ori_size / 2.0
 
         # add the offset between camera and body to shift the center to query camera
-        dx_cam = -camera_center_loc[1] / meter_per_pixel
-        dy_cam = camera_center_loc[0] / meter_per_pixel
+        # dx_cam = -camera_center_loc[1] / meter_per_pixel
+        # dy_cam = camera_center_loc[0] / meter_per_pixel
         # convert the offset to ploar coordinate
         tan_theta = -camera_center_loc[1] / camera_center_loc[0]
         length_dxy = np.sqrt(
@@ -387,18 +342,37 @@ class _Dataset(Dataset):
         cam_location_x = x_sg + satellite_ori_size / 2.0 + dx_cam_pixel
         cam_location_y = y_sg + satellite_ori_size / 2.0 + dy_cam_pixel
 
-        # # # get velodyne_world on the satelite map
-        # velodyne_sat_2d, velodyne_sat, velodyne_imu, sat_mask, imu2sat = project_lidar_to_sat(velodyne_imu, imu_rot, meter_per_pixel, [body_location_x, body_location_y])
+        # # # # get velodyne_world on the satelite map
+        # sat_2d, sat_3d, cam_3d = project_cam_to_sat(cam_3d, imu_rot, meter_per_pixel, [cam_location_x, cam_location_y])
         # velodyne_grd = cam_3d[:,sat_mask].T
 
-        mask = cam_3d[-1] < satellite_ori_size * meter_per_pixel / 2.0
-        cam_3d = cam_3d[:,mask].T
+        # mask = cam_3d[-1] < satellite_ori_size * meter_per_pixel / 2.0
+        # cam_3d = cam_3d[:,mask].T
 
-        # check max_num_points
+        # sat
+        grd2sat = np.array([[0,0,1,0],[1,0,0,0],[0,1,0,0],[0,0,0,1]]) #grd z->sat x; grd x->sat y, grd y->sat z
+        grd2sat = Pose.from_4x4mat(grd2sat).float()
+
+        camera = Camera.from_colmap(dict(
+            model='SIMPLE_PINHOLE', params=(1 / meter_per_pixel, cam_location_x, cam_location_y, 0,0,0,0,np.infty),#np.infty for parallel projection
+            width=int(satellite_ori_size), height=int(satellite_ori_size)))
+        sat_image = {
+            'image': sat_map.float(),
+            'camera': camera.float(),
+            'T_w2cam': Pose.from_4x4mat(np.eye(4)).float() # grd 2 sat in q2r, so just eye(4)
+            #'points3D': None # use grd points 3D
+        }
+
+        # project to sat and find visible mask
+        cam_3d = cam_3d.T
+        _, visible = camera.world2image(torch.from_numpy(cam_3d).float())
+        cam_3d = cam_3d[visible]
+
         num_diff = self.conf.max_num_points3D - len(cam_3d)
         if num_diff < 0:
-            valid_idx = np.random.choice(range(len(cam_3d)), self.conf.max_num_points3D)
-            cam_3d = cam_3d[valid_idx]
+            # select max_num_points in visible sat_2d related cam_3d
+            idx = farthest_point_sample(torch.from_numpy(cam_3d).float(), self.conf.max_num_points3D)
+            cam_3d = cam_3d[idx]
         elif num_diff > 0 and self.conf.force_num_points3D:
             point_add = np.ones((num_diff, 3)) * cam_3d[-1]
             cam_3d = np.vstack((cam_3d, point_add))
@@ -429,24 +403,9 @@ class _Dataset(Dataset):
         r2q_init = Pose.from_Rt(R_yaw,T).float()
         r2q_init = r2q_gt@r2q_init
 
-        # sat
-        grd2sat = np.array([[0,0,1,0],[1,0,0,0],[0,1,0,0],[0,0,0,1]]) #grd z->sat x; grd x->sat y, grd y->sat z
-        grd2sat = Pose.from_4x4mat(grd2sat).float()
-
         # add grd2sat into gt and init
         q2r_gt = grd2sat @ (r2q_gt.inv())
         q2r_init = grd2sat @ (r2q_init.inv())
-
-        #cam2sat = grd2sat@(r2q_gt.inv())
-        camera = Camera.from_colmap(dict(
-            model='SIMPLE_PINHOLE', params=(1 / meter_per_pixel, cam_location_x, cam_location_y, 0,0,0,0,np.infty),#np.infty for parallel projection
-            width=int(satellite_ori_size), height=int(satellite_ori_size)))
-        sat_image = {
-            'image': sat_map.float(),
-            'camera': camera.float(),
-            'T_w2cam': Pose.from_4x4mat(np.eye(4)).float() # grd 2 sat in q2r, so just eye(4)
-            #'points3D': None # use grd points 3D
-        }
 
         # scene
         scene = drive_dir[:4]+drive_dir[5:7]+drive_dir[8:10]+drive_dir[28:32]+image_no[:10]
@@ -510,7 +469,7 @@ class _Dataset(Dataset):
 if __name__ == '__main__':
     # test to load 1 data
     conf = {
-        'max_num_points3D': 20000,
+        'max_num_points3D': 1000,
         'force_num_points3D': True,
         'batch_size': 1,
         'min_baseline': 1.,
