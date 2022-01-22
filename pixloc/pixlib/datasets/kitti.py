@@ -370,8 +370,9 @@ class _Dataset(Dataset):
 
         num_diff = self.conf.max_num_points3D - len(cam_3d)
         if num_diff < 0:
-            # select max_num_points in visible sat_2d related cam_3d
-            idx = farthest_point_sample(torch.from_numpy(cam_3d).float(), self.conf.max_num_points3D)
+            # select max_num_points
+            idx = np.random.choice(range(len(cam_3d)), self.conf.max_num_points3D)
+            #idx = farthest_point_sample(torch.from_numpy(cam_3d).float(), self.conf.max_num_points3D)
             cam_3d = cam_3d[idx]
         elif num_diff > 0 and self.conf.force_num_points3D:
             point_add = np.ones((num_diff, 3)) * cam_3d[-1]
@@ -469,7 +470,7 @@ class _Dataset(Dataset):
 if __name__ == '__main__':
     # test to load 1 data
     conf = {
-        'max_num_points3D': 1000,
+        'max_num_points3D': 10000,
         'force_num_points3D': True,
         'batch_size': 1,
         'min_baseline': 1.,
