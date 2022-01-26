@@ -82,7 +82,7 @@ class DirectAbsoluteCost:
         else:
             F_p2D = F_p2D_raw
 
-        res = F_query - F_p2D
+        res = F_p2D - F_query
         info = (p3D_r, F_p2D, gradients) # ref information
         return res, valid, weight, F_p2D, info
 
