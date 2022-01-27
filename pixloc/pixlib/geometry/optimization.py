@@ -20,6 +20,10 @@ def optimizer_step(g, H, lambda_=0, mute=False, mask=None, eps=1e-6):
     if lambda_ is 0:  # noqa
         diag = torch.zeros_like(g)
     else:
+        # select 3DOF lambda, tx,ty,Rz
+        idx = torch.tensor([0,2,4], device=g.device)
+        lambda_ = torch.index_select(lambda_, 0, idx)
+
         diag = H.diagonal(dim1=-2, dim2=-1) * lambda_
     H = H + diag.clamp(min=eps).diag_embed()
 

@@ -128,7 +128,12 @@ class LearnedOptimizer(BaseOptimizer):
                 delta = delta * J_scaling
 
             # compute the pose update
-            dt, dw = delta.split([3, 3], dim=-1)
+            #dt, dw = delta.split([3, 3], dim=-1)
+            dt, dw = delta.split([2, 1], dim=-1)
+            zeros = torch.zeros_like(dw)
+            dw = torch.hstack([zeros,zeros,dw])
+            dt = torch.hstack([dt, zeros])
+
             T_delta = Pose.from_aa(dw, dt)
             T = T_delta @ T
 
