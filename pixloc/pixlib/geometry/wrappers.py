@@ -225,12 +225,13 @@ class Pose(TensorWrapper):
         dr = torch.acos(cos).abs() / math.pi * 180
         dt = torch.norm(self.t, dim=-1)
         return dr, dt
-    def magnitude_lateral(self) -> Tuple[torch.Tensor]:
+    def magnitude_latlong(self) -> Tuple[torch.Tensor]:
         '''Magnitude of the SE(3) transformation.
         Returns:
-            dy: translation distance in meters.
+            dy: laterral translation distance in meters.
+            dx: longitudinal translation distance in meters.
         '''
-        return torch.abs(self.t[..., -2])
+        return torch.abs(self.t[..., -2]), torch.abs(self.t[..., -3])
 
     def __repr__(self):
         return f'Pose: {self.shape} {self.dtype} {self.device}'

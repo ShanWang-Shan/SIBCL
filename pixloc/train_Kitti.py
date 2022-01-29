@@ -143,7 +143,9 @@ def Val(refiner, val_loader, save_path, best_result):
         errP = f"ΔP {losses['reprojection_error/init'].item():.2f} -> {losses['reprojection_error'].item():.3f} px; "
         errR = f"ΔR {mets['R_error/init'].item():.2f} -> {mets['R_error'].item():.3f} deg; "
         errt = f"Δt {mets['t_error/init'].item():.2f} -> {mets['t_error'].item():.3f} m"
-        print(errP, errR, errt)
+        errlat = f"Δlat {mets['lat_error/init'].item():.2f} -> {mets['lat_error'].item():.3f} m"
+        errlong = f"Δlong {mets['long_error/init'].item():.2f} -> {mets['long_error'].item():.3f} m"
+        print(errP, errR, errt, errlat,errlong)
 
         if mets['t_error'].item() < 1 and mets['R_error'].item() < 2:
             acc += 1

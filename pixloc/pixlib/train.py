@@ -27,6 +27,7 @@ from pixloc import logger
 
 import numpy as np
 import datetime
+import time
 
 
 default_train_conf = {
@@ -56,8 +57,8 @@ def do_evaluation(model, loader, device, loss_fn, metrics_fn, conf, pbar=True):
     acc = 0
     total = 0
     errR = []
-    errt = []
-    errx = []
+    errlong = []
+    errlat = []
     for data in tqdm(loader, desc='Evaluation', ascii=True, disable=not pbar):
         data = batch_to_device(data, device, non_blocking=True)
         with torch.no_grad():
@@ -66,10 +67,11 @@ def do_evaluation(model, loader, device, loss_fn, metrics_fn, conf, pbar=True):
             metrics = metrics_fn(pred, data)
 
             errR.append(metrics['R_error'].item())
-            errt.append(metrics['t_error'].item())
-            errx.append(metrics['x_error'].item())
+            errlong.append(metrics['long_error'].item())
+            errlat.append(metrics['lat_error'].item())
 
-            if metrics['x_error'].item() < 1 and metrics['R_error'].item() < 2:
+            #if metrics['lat_error'].item() <= 0.2 and metrics['lon_error'].item() <= 0.4 and metrics['R_error'].item() < 1: #requerment of Ford
+            if metrics['lat_error'].item() <= 1 and metrics['long_error'].item() <= 5 and metrics['R_error'].item() < 1:
                 acc += 1
             total += 1
 
@@ -85,7 +87,7 @@ def do_evaluation(model, loader, device, loss_fn, metrics_fn, conf, pbar=True):
                 results[k+'_median'].update(v)
     results = {k: results[k].compute() for k in results}
     results['acc'] = acc / total
-    logger.info(f'everage errR:{sum(errR)/len(errR)}, errT:{sum(errt)/len(errt)}, errX:{sum(errx)/len(errx)}')
+    logger.info(f'everage errR:{sum(errR)/len(errR)},errX:{sum(errlat)/len(errlat)},errT:{sum(errlong)/len(errlong)},')
     return results
 
 
@@ -307,10 +309,10 @@ def training(rank, conf, output_dir, args):
             losses = loss_fn(pred, data)
 
             # combine total loss(RT) & L1 loss, add by shan 
-            RT_loss_weight = 1 
+            RT_loss_weight = 1
             L1_loss_weight = 50 # 16.67/0.6 
             loss = RT_loss_weight*torch.mean(losses['total']) + L1_loss_weight*torch.mean(losses['L1_loss'])  # total is total of opt RT losses
-
+            #tick = time.time()
             do_backward = loss.requires_grad
             if args.distributed:
                 do_backward = torch.tensor(do_backward).float().to(device)
@@ -319,6 +321,7 @@ def training(rank, conf, output_dir, args):
                 do_backward = do_backward > 0
             if do_backward:
                 loss.backward()
+                #logger.info(f'after backward, time{time.time()-tick}')
                 optimizer.step()
                 lr_scheduler.step()
                 if conf.train.get('clip_grad', None):
@@ -427,7 +430,8 @@ if __name__ == '__main__':
     parser.add_argument('--restore', action='store_true', default=True)
     parser.add_argument('--distributed', action='store_true',default=False)
     parser.add_argument('--dotlist', nargs='*', default=["data.name=kitti","data.max_num_points3D=10000","data.force_num_points3D=False",
-                                                         "data.num_workers=0","data.batch_size=1","train.eval_every_iter=10000","train.lr=1e-3"])
+                                                         "data.num_workers=0","data.batch_size=1","train.eval_every_iter=10000","train.lr=1e-3",
+                                                         "model.optimizer.num_iters=15"])
     args = parser.parse_intermixed_args()
 
     logger.info(f'Starting experiment {args.experiment}')
@@ -463,5 +467,5 @@ if __name__ == '__main__':
             main_worker, nprocs=args.n_gpus,
             args=(conf, output_dir, args))
     else:
-        os.environ["CUDA_VISIBLE_DEVICES"] = '6'
+        os.environ["CUDA_VISIBLE_DEVICES"] = '0'
         main_worker(0, conf, output_dir, args)

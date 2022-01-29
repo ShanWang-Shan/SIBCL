@@ -13,10 +13,12 @@ from pixloc.pixlib.models.base_model import BaseModel
 from pixloc.pixlib.models import get_model
 from pixloc.pixlib.models.utils import masked_mean
 from pixloc.pixlib.geometry.losses import scaled_barron
+from pixloc.visualization.viz_2d import features_to_RGB
 
 from matplotlib import pyplot as plt
 from torchvision import transforms
 import cv2
+
 
 
 logger = logging.getLogger(__name__)
@@ -24,7 +26,7 @@ logger = logging.getLogger(__name__)
 # add by shan
 share_weight = False #
 cal_confidence = 3 # 0: no confidence, 1:only ref 2: only query, 3:both query and ref
-no_opt = False 
+no_opt = False
 l1_loss = 2 # 0:without l1 loss, 1: with gt l1 loss, 2: with gt-init l1 loss
 
 class TwoViewRefiner(BaseModel):
@@ -129,7 +131,7 @@ class TwoViewRefiner(BaseModel):
                 # color_image0 = np.array(color_image0)
                 # color_image1 = transforms.functional.to_pil_image(F_ref[0], mode='RGB')  # sat
                 # color_image1 = np.array(color_image1)
-                color_image1, color_image0 = features_to_RGB(F_ref[0].cpu().numpy(), F_q[0].cpu().numpy(), skip=1)
+                color_image1, color_image0 = features_to_RGB(F_ref[0].detach().cpu().numpy(), F_q[0].detach().cpu().numpy(), skip=1)
 
                 # sat
                 p3D_ref = data['T_q2r_gt'] * data['query']['points3D']
@@ -293,21 +295,21 @@ class TwoViewRefiner(BaseModel):
         @torch.no_grad()
         def scaled_pose_error(T_q2r):
             err_R, err_t = (T_q2r @ T_r2q_gt).magnitude()
-            err_x = (T_q2r @ T_r2q_gt).magnitude_lateral()
+            err_lat, err_long = (T_q2r @ T_r2q_gt).magnitude_latlong()
             # if self.conf.normalize_dt:
             #     err_t /= torch.norm(T_r2q_gt.t, dim=-1)
             # # change for validate lateral error only, change by shan
             # # return err_R, err_t
             #     err_x /= T_r2q_gt.magnitude_lateral()
-            return err_R, err_t, err_x
+            return err_R, err_t, err_lat, err_long
 
         metrics = {}
         for i, T_opt in enumerate(pred['T_q2r_opt']):
             err = scaled_pose_error(T_opt)
-            metrics[f'R_error/{i}'], metrics[f't_error/{i}'], metrics[f'x_error/{i}']  = err
-        metrics['R_error'], metrics['t_error'], metrics['x_error']  = err
+            metrics[f'R_error/{i}'], metrics[f't_error/{i}'], metrics[f'lat_error/{i}'], metrics[f'long_error/{i}'] = err
+        metrics['R_error'], metrics['t_error'], metrics['lat_error'], metrics[f'long_error']  = err
 
         err_init = scaled_pose_error(pred['T_q2r_init'][0])
-        metrics['R_error/init'], metrics['t_error/init'], metrics['x_error/init'] = err_init
+        metrics['R_error/init'], metrics['t_error/init'], metrics['lat_error/init'], metrics[f'long_error/init'] = err_init
 
         return metrics
