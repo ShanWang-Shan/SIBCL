@@ -56,9 +56,9 @@ def do_evaluation(model, loader, device, loss_fn, metrics_fn, conf, pbar=True):
     results = {}
     acc = 0
     total = 0
-    errR = []
-    errlong = []
-    errlat = []
+    errR = torch.tensor([])
+    errlong = torch.tensor([])
+    errlat = torch.tensor([])
     for data in tqdm(loader, desc='Evaluation', ascii=True, disable=not pbar):
         data = batch_to_device(data, device, non_blocking=True)
         with torch.no_grad():
@@ -66,14 +66,9 @@ def do_evaluation(model, loader, device, loss_fn, metrics_fn, conf, pbar=True):
             losses = loss_fn(pred, data)
             metrics = metrics_fn(pred, data)
 
-            errR.append(metrics['R_error'].item())
-            errlong.append(metrics['long_error'].item())
-            errlat.append(metrics['lat_error'].item())
-
-            #if metrics['lat_error'].item() <= 0.2 and metrics['lon_error'].item() <= 0.4 and metrics['R_error'].item() < 1: #requerment of Ford
-            if metrics['lat_error'].item() <= 1 and metrics['long_error'].item() <= 5 and metrics['R_error'].item() < 1:
-                acc += 1
-            total += 1
+            errR = torch.cat([errR, metrics['R_error'].cpu().data], dim=0)
+            errlong = torch.cat([errlong, metrics['long_error'].cpu().data], dim=0)
+            errlat = torch.cat([errlat, metrics['lat_error'].cpu().data], dim=0)
 
             del pred, data
         numbers = {**metrics, **{'loss/'+k: v for k, v in losses.items()}}
@@ -86,8 +81,21 @@ def do_evaluation(model, loader, device, loss_fn, metrics_fn, conf, pbar=True):
             if k in conf.median_metrics:
                 results[k+'_median'].update(v)
     results = {k: results[k].compute() for k in results}
-    results['acc'] = acc / total
-    logger.info(f'everage errR:{sum(errR)/len(errR)},errX:{sum(errlat)/len(errlat)},errT:{sum(errlong)/len(errlong)},')
+
+    # if lat <= 0.2 and long <= 0.4 and R < 1: #requerment of Ford
+    logger.info(f'acc of lat<=0.5:{torch.sum(errlat <= 0.5) / errlat.size(0)}')
+    logger.info(f'acc of lat<=1:{torch.sum(errlat <= 1) / errlat.size(0)}')
+    logger.info(f'acc of lat<=2:{torch.sum(errlat <= 2) / errlat.size(0)}')
+
+    logger.info(f'acc of long<=0.5:{torch.sum(errlong <= 0.5) / errlong.size(0)}')
+    logger.info(f'acc of long<=1:{torch.sum(errlong <= 1) / errlong.size(0)}')
+    logger.info(f'acc of lat<=2:{torch.sum(errlong <= 2) / errlong.size(0)}')
+
+    logger.info(f'acc of R<=0.5:{torch.sum(errR <= 0.5) / errR.size(0)}')
+    logger.info(f'acc of R<=1:{torch.sum(errR <= 1) / errR.size(0)}')
+    logger.info(f'acc of R<=2:{torch.sum(errR <= 2) / errR.size(0)}')
+
+    # logger.info(f'median errR:{sum(errR)/len(errR)},errlat:{sum(errlat)/len(errlat)},errlong:{sum(errlong)/len(errlong)}')
     return results
 
 
