@@ -83,10 +83,12 @@ def do_evaluation(model, loader, device, loss_fn, metrics_fn, conf, pbar=True):
     results = {k: results[k].compute() for k in results}
 
     # if lat <= 0.2 and long <= 0.4 and R < 1: #requerment of Ford
+    logger.info(f'acc of lat<=0.25:{torch.sum(errlat <= 0.25) / errlat.size(0)}')
     logger.info(f'acc of lat<=0.5:{torch.sum(errlat <= 0.5) / errlat.size(0)}')
     logger.info(f'acc of lat<=1:{torch.sum(errlat <= 1) / errlat.size(0)}')
     logger.info(f'acc of lat<=2:{torch.sum(errlat <= 2) / errlat.size(0)}')
 
+    logger.info(f'acc of long<=0.25:{torch.sum(errlong <= 0.25) / errlong.size(0)}')
     logger.info(f'acc of long<=0.5:{torch.sum(errlong <= 0.5) / errlong.size(0)}')
     logger.info(f'acc of long<=1:{torch.sum(errlong <= 1) / errlong.size(0)}')
     logger.info(f'acc of lat<=2:{torch.sum(errlong <= 2) / errlong.size(0)}')
@@ -94,10 +96,12 @@ def do_evaluation(model, loader, device, loss_fn, metrics_fn, conf, pbar=True):
     logger.info(f'acc of R<=0.5:{torch.sum(errR <= 0.5) / errR.size(0)}')
     logger.info(f'acc of R<=1:{torch.sum(errR <= 1) / errR.size(0)}')
     logger.info(f'acc of R<=2:{torch.sum(errR <= 2) / errR.size(0)}')
+    logger.info(f'acc of R<=4:{torch.sum(errR <= 4) / errR.size(0)}')
 
-    logger.info(f'acc of lat/long/R<0.5:{torch.sum(torch.logical_and(torch.logical_and(errlat <= 0.5,errlong <= 0.5),errR <= 0.5)) / errR.size(0)}')
-    logger.info(f'acc of lat/long/R<1:{torch.sum(torch.logical_and(torch.logical_and(errlat <= 1, errlong <= 1), errR <= 1)) / errR.size(0)}')
-    logger.info(f'acc of lat/long/R<2:{torch.sum(torch.logical_and(torch.logical_and(errlat <= 2, errlong <= 2), errR <= 2)) / errR.size(0)}')
+    logger.info(f'acc of lat/long<0.25/R<0.5:{torch.sum(torch.logical_and(torch.logical_and(errlat <= 0.25, errlong <= 0.25), errR <= 0.5)) / errR.size(0)}')
+    logger.info(f'acc of lat/long<0.5/R<1:{torch.sum(torch.logical_and(torch.logical_and(errlat <= 0.5,errlong <= 0.5),errR <= 1)) / errR.size(0)}')
+    logger.info(f'acc of lat/long<1/R<2:{torch.sum(torch.logical_and(torch.logical_and(errlat <= 1, errlong <= 1), errR <= 2)) / errR.size(0)}')
+    logger.info(f'acc of lat/long<2/R<4:{torch.sum(torch.logical_and(torch.logical_and(errlat <= 2, errlong <= 2), errR <= 4)) / errR.size(0)}')
 
     # logger.info(f'median errR:{sum(errR)/len(errR)},errlat:{sum(errlat)/len(errlat)},errlong:{sum(errlong)/len(errlong)}')
     return results
