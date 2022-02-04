@@ -12,6 +12,8 @@ from .base_model import BaseModel
 from .utils import checkpointed
 from copy import deepcopy
 
+# for 1 unet test
+HAVE_SAT = False 
 
 class DecoderBlock(nn.Module):
     def __init__(self, previous, skip, out, num_convs=1, norm=nn.BatchNorm2d):
@@ -154,17 +156,23 @@ class UNet(BaseModel):
         self.adaptation = nn.ModuleList(adaptation)
 
         # add by shan, for sat images
-        self.add_sat_unet()
+        if HAVE_SAT:
+            self.add_sat_unet()
 
         self.scales = [2**s for s in conf.output_scales]
         if conf.compute_uncertainty:
             self.uncertainty = nn.ModuleList(uncertainty)
 
     def _forward(self, data):
-        if 'type' in data.keys() and data['type'] == 'sat':
-            encoder = self.sat_encoder
-            decoder = self.sat_decoder
-            adaptation = self.sat_adaptation
+        if HAVE_SAT:
+            if 'type' in data.keys() and data['type'] == 'sat':
+                encoder = self.sat_encoder
+                decoder = self.sat_decoder
+                adaptation = self.sat_adaptation
+            else:
+                encoder = self.encoder
+                decoder = self.decoder
+                adaptation = self.adaptation
         else:
             encoder = self.encoder
             decoder = self.decoder

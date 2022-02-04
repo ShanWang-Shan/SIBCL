@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 share_weight = False #
 cal_confidence = 3 # 0: no confidence, 1:only ref 2: only query, 3:both query and ref
 no_opt = False
-l1_loss = 2 # 0:without l1 loss, 1: with gt l1 loss, 2: with gt-init l1 loss
+l1_loss = 0 # 0:without l1 loss, 1: with gt l1 loss, 2: with gt-init l1 loss
 
 class TwoViewRefiner(BaseModel):
     default_conf = {
@@ -285,7 +285,7 @@ class TwoViewRefiner(BaseModel):
         if l1_loss and not share_weight:
             losses['L1_loss'] = sum(pred['L1_loss'])/num_scales
         else:
-            losses['L1_loss'] = torch.tensor(0.)
+            losses['L1_loss'] = torch.tensor([0.])
 
         return losses
 
