@@ -36,7 +36,7 @@ def optimizer_step(g, H, lambda_=0, mute=False, mask=None, eps=1e-6):
     # add by shan
     if torch.isnan(g).any() or torch.isnan(H).any():
         print('nan in g or H, return 0 delta')
-        delta = torch.zeros(g.size(0),6)
+        delta = torch.zeros_like(g)
         return delta.to(H.device)
 
     H_, g_ = H.cpu(), g.cpu()
