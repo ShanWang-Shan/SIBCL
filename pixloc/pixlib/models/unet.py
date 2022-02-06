@@ -33,6 +33,9 @@ class DecoderBlock(nn.Module):
             layers.append(nn.ReLU(inplace=True))
         self.layers = nn.Sequential(*layers)
 
+        # norm is instanceNorm2d when batch is 1
+        self.norm = nn.InstanceNorm2d(out)
+
     def forward(self, previous, skip):
         upsampled = self.upsample(previous)
         # If the shape of the input map `skip` is not a multiple of 2,
@@ -44,8 +47,21 @@ class DecoderBlock(nn.Module):
         assert (hu <= hs) and (wu <= ws), 'Using ceil_mode=True in pooling?'
         # assert (hu == hs) and (wu == ws), 'Careful about padding'
         skip = skip[:, :, :hu, :wu]
-        return self.layers(torch.cat([upsampled, skip], dim=1))
 
+        # norm is instanceNorm2d when batch is 1
+        # return self.layers(torch.cat([upsampled, skip], dim=1))
+        if previous.size(0) == 1:
+            if len(self.layers) >= 3:
+                # bn is in layers[1]
+                out = self.layers[0](torch.cat([upsampled, skip], dim=1))
+                if torch.isnan(out).any():
+                    print('nan in decoder conv')
+                out = self.norm(out)
+                if torch.isnan(out).any():
+                    print('nan in decoder inorm')
+                return self.layers[2:](out)
+        else:
+            return self.layers(torch.cat([upsampled, skip], dim=1))
 
 class AdaptationBlock(nn.Sequential):
     def __init__(self, inp, out):
