@@ -24,7 +24,6 @@ import cv2
 logger = logging.getLogger(__name__)
 
 # add by shan
-share_weight = False #
 cal_confidence = 3 # 0: no confidence, 1:only ref 2: only query, 3:both query and ref
 no_opt = False
 l1_loss = 0 # 0:without l1 loss, 1: with gt l1 loss, 2: with gt-init l1 loss
@@ -55,8 +54,6 @@ class TwoViewRefiner(BaseModel):
     def _init(self, conf):
         self.extractor = get_model(conf.extractor.name)(conf.extractor)
         assert hasattr(self.extractor, 'scales')
-        # if not share_weight:
-        #     self.extractor_sat = deepcopy(self.extractor) # add by shan
 
         Opt = get_model(conf.optimizer.name)
         if conf.duplicate_optimizer_per_scale:
@@ -85,20 +82,6 @@ class TwoViewRefiner(BaseModel):
             return pred_i
 
         pred = {i: process_siamese(data[i], i) for i in ['ref', 'query']}
-
-        # # change by shan
-        # if share_weight:
-        #     pred = {i: process_siamese(data[i]) for i in ['ref', 'query']}
-        # else:
-        #
-        #     # add by shan for satellite image extractor
-        #     def process_sat(data_i):
-        #         pred_i = self.extractor_sat(data_i, sat_flag=True)
-        #         pred_i['camera_pyr'] = [data_i['camera'].scale(1/s)
-        #                             for s in self.extractor_sat.scales]
-        #         return pred_i
-        #     pred = {i: process_siamese(data[i]) for i in ['query']}
-        #     pred.update({i: process_sat(data[i]) for i in ['ref']})
 
         p3D_query = data['query']['points3D']
         T_init = data['T_q2r_init']
@@ -200,7 +183,7 @@ class TwoViewRefiner(BaseModel):
             T_init = T_opt.detach()
 
             # add by shan, query & reprojection GT error, for query unet back propogate
-            if l1_loss and not share_weight:
+            if l1_loss:
                 loss_gt = self.preject_l1loss(opt, p3D_query, F_ref, F_q, data['T_q2r_gt'], cam_ref, mask=mask, W_ref_query=W_ref_q)
                 if l1_loss == 1:
                     pred['L1_loss'].append(loss_gt)
@@ -220,7 +203,7 @@ class TwoViewRefiner(BaseModel):
 
         # compute the cost and aggregate the weights
         cost = (res ** 2).sum(-1)
-        cost, w_loss, _ = opt.loss_fn(cost)
+        #cost, w_loss, _ = opt.loss_fn(cost) # no need robust process
         loss = cost * valid.float()
         if w_unc is not None:
             if l1_loss == 1:
@@ -230,7 +213,7 @@ class TwoViewRefiner(BaseModel):
             else:
                 loss = loss * w_unc
 
-        return torch.sum(loss, dim=-1)
+        return torch.sum(loss, dim=-1)/(torch.sum(valid)+1e-6)
 
     # add by shan for satellite image extractor
     def add_sat_extractor(self):
@@ -282,10 +265,9 @@ class TwoViewRefiner(BaseModel):
         losses['reprojection_error/init'] = err_init
 
         # add by shan, query & reprojection GT error, for query unet back propogate
-        if l1_loss and not share_weight:
-            losses['L1_loss'] = sum(pred['L1_loss'])/num_scales
-        else:
-            losses['L1_loss'] = torch.tensor([0.])
+        if l1_loss:
+            L1_loss_weight = 30
+            losses['total'] += L1_loss_weight*sum(pred['L1_loss'])/num_scales
 
         return losses
 
