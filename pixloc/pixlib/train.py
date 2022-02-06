@@ -325,9 +325,10 @@ def training(rank, conf, output_dir, args):
             losses = loss_fn(pred, data)
 
             # combine total loss(RT) & L1 loss, add by shan 
-            RT_loss_weight = 1
-            L1_loss_weight = 50 # 16.67/0.6 
-            loss = RT_loss_weight*torch.mean(losses['total']) + L1_loss_weight*torch.mean(losses['L1_loss'])  # total is total of opt RT losses
+            #RT_loss_weight = 1
+            #L1_loss_weight = 50 # 16.67/0.6 
+            #loss = RT_loss_weight*torch.mean(losses['total']) + L1_loss_weight*torch.mean(losses['L1_loss'])  # total is total of opt RT losses
+            loss = torch.mean(losses['total'])
             #tick = time.time()
             do_backward = loss.requires_grad
             if args.distributed:
@@ -440,13 +441,13 @@ def main_worker(rank, conf, output_dir, args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--experiment', type=str, default='pixloc_kitti')
+    parser.add_argument('--experiment', type=str, default='pixloc_kitti_105')
     parser.add_argument('--conf', type=str)
     parser.add_argument('--overfit', action='store_true', default=False)
     parser.add_argument('--restore', action='store_true', default=True)
     parser.add_argument('--distributed', action='store_true',default=False)
     parser.add_argument('--dotlist', nargs='*', default=["data.name=kitti","data.max_num_points3D=10000","data.force_num_points3D=False",
-                                                         "data.num_workers=0","data.batch_size=1","train.eval_every_iter=10000","train.lr=1e-3",
+                                                         "data.num_workers=0","data.batch_size=1","train.eval_every_iter=10000","train.lr=1e-2",
                                                          "model.optimizer.num_iters=15"])
     args = parser.parse_intermixed_args()
 
@@ -463,15 +464,15 @@ if __name__ == '__main__':
         OmegaConf.save(conf, str(output_dir / 'config.yaml'))
 
     if args.distributed:
-        args.n_gpus = 6 #torch.cuda.device_count()
-        os.environ["CUDA_VISIBLE_DEVICES"] = '0,1,2,3,4,5'
+        args.n_gpus = 2 #torch.cuda.device_count()
+        os.environ["CUDA_VISIBLE_DEVICES"] = '3,4'
         os.environ["MASTER_ADDR"] = 'localhost'
         os.environ["MASTER_PORT"] = '1250'
 
         # debug by shan
-        #os.environ["NCCL_DEBUG"] = 'INFO'
-        #os.environ["NCCL_DEBUG_SUBSYS"] = 'ALL'
-        #os.environ["NCCL_LL_THRESHOLD"] = '0'
+        os.environ["NCCL_DEBUG"] = 'INFO'
+        os.environ["NCCL_DEBUG_SUBSYS"] = 'ALL'
+        os.environ["NCCL_LL_THRESHOLD"] = '0'
         #os.environ["NCCL_BLOCKING_WAIT"] = '1'
         os.environ["TORCH_DISTRIBUTED_DEBUG"] = 'INFO'
 
@@ -483,5 +484,5 @@ if __name__ == '__main__':
             main_worker, nprocs=args.n_gpus,
             args=(conf, output_dir, args))
     else:
-        os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+        os.environ["CUDA_VISIBLE_DEVICES"] = '1'
         main_worker(0, conf, output_dir, args)
