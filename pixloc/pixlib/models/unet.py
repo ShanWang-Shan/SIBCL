@@ -13,7 +13,7 @@ from .utils import checkpointed
 from copy import deepcopy
 
 # for 1 unet test
-HAVE_SAT = False 
+HAVE_SAT = True
 
 class DecoderBlock(nn.Module):
     def __init__(self, previous, skip, out, num_convs=1, norm=nn.BatchNorm2d):
@@ -157,7 +157,8 @@ class UNet(BaseModel):
 
         # add by shan, for sat images
         if HAVE_SAT:
-            self.add_sat_unet()
+            self.add_sat_branch()
+            #self.add_sat_unet()
 
         self.scales = [2**s for s in conf.output_scales]
         if conf.compute_uncertainty:
@@ -167,16 +168,16 @@ class UNet(BaseModel):
         if HAVE_SAT:
             if 'type' in data.keys() and data['type'] == 'sat':
                 encoder = self.sat_encoder
-                decoder = self.sat_decoder
-                adaptation = self.sat_adaptation
+                # decoder = self.sat_decoder
+                # adaptation = self.sat_adaptation
             else:
                 encoder = self.encoder
-                decoder = self.decoder
-                adaptation = self.adaptation
+                # decoder = self.decoder
+                # adaptation = self.adaptation
         else:
             encoder = self.encoder
-            decoder = self.decoder
-            adaptation = self.adaptation
+            # decoder = self.decoder
+            # adaptation = self.adaptation
 
         image = data['image']
         mean, std = image.new_tensor(self.mean), image.new_tensor(self.std)
@@ -190,14 +191,14 @@ class UNet(BaseModel):
 
         if self.conf.decoder:
             pre_features = [skip_features[-1]]
-            for block, skip in zip(decoder, skip_features[:-1][::-1]):
+            for block, skip in zip(self.decoder, skip_features[:-1][::-1]):
                 pre_features.append(block(pre_features[-1], skip))
             pre_features = pre_features[::-1]  # fine to coarse
         else:
             pre_features = skip_features
 
         out_features = []
-        for adapt, i in zip(adaptation, self.conf.output_scales):
+        for adapt, i in zip(self.adaptation, self.conf.output_scales):
             out_features.append(adapt(pre_features[i]))
         pred = {'feature_maps': out_features}
 
@@ -221,3 +222,13 @@ class UNet(BaseModel):
         self.sat_encoder = deepcopy(self.encoder)
         self.sat_decoder = deepcopy(self.decoder)
         self.sat_adaptation = deepcopy(self.adaptation)
+
+    def add_sat_branch(self):
+        high_encoder = self.encoder[2:]
+        sat_low_decoder = deepcopy(self.encoder[:2])
+        blocks = []
+        for block in sat_low_decoder:
+            blocks.append(block)
+        for block in high_encoder:
+            blocks.append(block)
+        self.sat_encoder = nn.ModuleList(blocks)
