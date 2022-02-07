@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # add by shan
 cal_confidence = 3 # 0: no confidence, 1:only ref 2: only query, 3:both query and ref
 no_opt = False
-l1_loss = 0 # 0:without l1 loss, 1: with gt l1 loss, 2: with gt-init l1 loss
+pose_loss = 2 # 0:without l1 loss, 1: with gt l1 loss, 2: with gt-init l1 loss
 
 class TwoViewRefiner(BaseModel):
     default_conf = {
@@ -89,7 +89,7 @@ class TwoViewRefiner(BaseModel):
         pred['T_q2r_init'] = []
         pred['T_q2r_opt'] = []
         pred['valid_masks'] = []
-        pred['L1_loss'] = []
+        pred['pose_loss'] = []
         for i in reversed(range(len(self.extractor.scales))):
             F_ref = pred['ref']['feature_maps'][i]
             F_q = pred['query']['feature_maps'][i]
@@ -183,15 +183,15 @@ class TwoViewRefiner(BaseModel):
             T_init = T_opt.detach()
 
             # add by shan, query & reprojection GT error, for query unet back propogate
-            if l1_loss:
+            if pose_loss:
                 loss_gt = self.preject_l1loss(opt, p3D_query, F_ref, F_q, data['T_q2r_gt'], cam_ref, mask=mask, W_ref_query=W_ref_q)
-                if l1_loss == 1:
-                    pred['L1_loss'].append(loss_gt)
+                if pose_loss == 1:
+                    pred['pose_loss'].append(loss_gt)
                 else:
                     loss_init = self.preject_l1loss(opt, p3D_query, F_ref, F_q, data['T_q2r_init'], cam_ref, mask=mask, W_ref_query=W_ref_q)
                     #diff_loss = (loss_gt-loss_init).clamp(min=-self.conf.clamp_error)
                     diff_loss = torch.log(1 + torch.exp(loss_gt-loss_init))
-                    pred['L1_loss'].append(diff_loss)
+                    pred['pose_loss'].append(diff_loss)
 
         return pred
 
@@ -206,7 +206,7 @@ class TwoViewRefiner(BaseModel):
         #cost, w_loss, _ = opt.loss_fn(cost) # no need robust process
         loss = cost * valid.float()
         if w_unc is not None:
-            if l1_loss == 1:
+            if pose_loss == 1:
                 # do not gradient back to w_unc
                 weight = w_unc.detach()
                 loss = loss * weight
@@ -250,6 +250,8 @@ class TwoViewRefiner(BaseModel):
         num_scales = len(self.extractor.scales)
         success = None
         losses = {'total': 0.}
+        if pose_loss:
+            losses['pose_loss'] = 0
         for i, T_opt in enumerate(pred['T_q2r_opt']):
             err = reprojection_error(T_opt).clamp(max=self.conf.clamp_error)
             loss = err / num_scales
@@ -259,17 +261,18 @@ class TwoViewRefiner(BaseModel):
             success = err < thresh
             losses[f'reprojection_error/{i}'] = err
             losses['total'] += loss
+
+            # add by shan, query & reprojection GT error, for query unet back propogate
+            if pose_loss:
+                losses['pose_loss'] += pred['pose_loss'][i]/ num_scales
+                poss_loss_weight = 30
+                losses['total'] += poss_loss_weight * losses['pose_loss']
+
         losses['reprojection_error'] = err
         losses['total'] *= (~too_few).float()
 
         err_init = reprojection_error(pred['T_q2r_init'][0])
         losses['reprojection_error/init'] = err_init
-
-        # add by shan, query & reprojection GT error, for query unet back propogate
-        if l1_loss:
-            L1_loss_weight = 30
-            losses['total'] += L1_loss_weight*sum(pred['L1_loss'])/num_scales
-
         return losses
 
     def metrics(self, pred, data):
