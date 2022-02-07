@@ -34,7 +34,7 @@ class DecoderBlock(nn.Module):
         self.layers = nn.Sequential(*layers)
 
         # norm is instanceNorm2d when batch is 1
-        self.norm = nn.InstanceNorm2d(out)
+        #self.norm = nn.InstanceNorm2d(out)
 
     def forward(self, previous, skip):
         upsampled = self.upsample(previous)
@@ -49,19 +49,19 @@ class DecoderBlock(nn.Module):
         skip = skip[:, :, :hu, :wu]
 
         # norm is instanceNorm2d when batch is 1
-        # return self.layers(torch.cat([upsampled, skip], dim=1))
-        if previous.size(0) == 1:
-            if len(self.layers) >= 3:
-                # bn is in layers[1]
-                out = self.layers[0](torch.cat([upsampled, skip], dim=1))
-                if torch.isnan(out).any():
-                    print('nan in decoder conv')
-                out = self.norm(out)
-                if torch.isnan(out).any():
-                    print('nan in decoder inorm')
-                return self.layers[2:](out)
-        else:
-            return self.layers(torch.cat([upsampled, skip], dim=1))
+        return self.layers(torch.cat([upsampled, skip], dim=1))
+        # if previous.size(0) == 1:
+        #     if len(self.layers) >= 3:
+        #         # bn is in layers[1]
+        #         out = self.layers[0](torch.cat([upsampled, skip], dim=1))
+        #         if torch.isnan(out).any():
+        #             print('nan in decoder conv')
+        #         out = self.norm(out)
+        #         if torch.isnan(out).any():
+        #             print('nan in decoder inorm')
+        #         return self.layers[2:](out)
+        # else:
+        #     return self.layers(torch.cat([upsampled, skip], dim=1))
 
 class AdaptationBlock(nn.Sequential):
     def __init__(self, inp, out):
@@ -240,8 +240,11 @@ class UNet(BaseModel):
         self.sat_adaptation = deepcopy(self.adaptation)
 
     def add_sat_branch(self):
-        high_encoder = self.encoder[2:]
-        sat_low_decoder = deepcopy(self.encoder[:2])
+        # high_encoder = self.encoder[2:]
+        # sat_low_decoder = deepcopy(self.encoder[:2])
+        # only not share weight in last layer of encoder
+        high_encoder = deepcopy(self.encoder[-1:])
+        sat_low_decoder = self.encoder[:-1]
         blocks = []
         for block in sat_low_decoder:
             blocks.append(block)
