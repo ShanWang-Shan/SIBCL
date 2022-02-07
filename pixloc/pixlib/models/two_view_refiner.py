@@ -190,7 +190,10 @@ class TwoViewRefiner(BaseModel):
                 else:
                     loss_init = self.preject_l1loss(opt, p3D_query, F_ref, F_q, data['T_q2r_init'], cam_ref, mask=mask, W_ref_query=W_ref_q)
                     #diff_loss = (loss_gt-loss_init).clamp(min=-self.conf.clamp_error)
-                    diff_loss = torch.log(1 + torch.exp(loss_gt-loss_init))
+                    # loss range:0.31~1.31 => 0~1
+                    #diff_loss = torch.log(1 + torch.exp(loss_gt-loss_init))-0.3133
+                    # loss range:0.31~1.31 => 0~1
+                    diff_loss = torch.clamp_min(loss_gt - loss_init, 0)
                     pred['pose_loss'].append(diff_loss)
 
         return pred
@@ -203,7 +206,8 @@ class TwoViewRefiner(BaseModel):
 
         # compute the cost and aggregate the weights
         cost = (res ** 2).sum(-1)
-        #cost, w_loss, _ = opt.loss_fn(cost) # no need robust process
+        # cost, w_loss, _ = opt.loss_fn(cost) # no need robust process
+        # cost = cost * 10
         loss = cost * valid.float()
         if w_unc is not None:
             if pose_loss == 1:
@@ -265,7 +269,7 @@ class TwoViewRefiner(BaseModel):
             # add by shan, query & reprojection GT error, for query unet back propogate
             if pose_loss:
                 losses['pose_loss'] += pred['pose_loss'][i]/ num_scales
-                poss_loss_weight = 30
+                poss_loss_weight = 20
                 losses['total'] += poss_loss_weight * losses['pose_loss']
 
         losses['reprojection_error'] = err
