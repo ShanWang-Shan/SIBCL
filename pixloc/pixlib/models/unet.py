@@ -13,7 +13,7 @@ from .utils import checkpointed
 from copy import deepcopy
 
 # for 1 unet test
-HAVE_SAT = True
+HAVE_SAT = False 
 
 class DecoderBlock(nn.Module):
     def __init__(self, previous, skip, out, num_convs=1, norm=nn.BatchNorm2d):
