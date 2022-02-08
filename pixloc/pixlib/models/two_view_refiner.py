@@ -207,7 +207,6 @@ class TwoViewRefiner(BaseModel):
         # compute the cost and aggregate the weights
         cost = (res ** 2).sum(-1)
         cost, w_loss, _ = opt.loss_fn(cost) # robust cost
-        cost = cost * 100 # scale up
         loss = cost * valid.float()
         if w_unc is not None:
             if pose_loss == 1:
@@ -217,7 +216,7 @@ class TwoViewRefiner(BaseModel):
             else:
                 loss = loss * w_unc
 
-        return torch.sum(loss, dim=-1)/(torch.sum(valid)+1e-6)
+        return torch.sum(loss, dim=-1)
 
     # add by shan for satellite image extractor
     def add_sat_extractor(self):
