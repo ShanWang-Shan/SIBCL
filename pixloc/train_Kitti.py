@@ -20,38 +20,25 @@ torch.set_grad_enabled(False);
 mpl.rcParams['image.interpolation'] = 'bilinear'
 
 conf = {
-    'min_overlap': 0.3, #?
-    'max_overlap': 1.0, #?
-    'max_num_points3D': 10000,#512
+    'max_num_points3D': 10000,
     'force_num_points3D': True,
     'batch_size': 1, # only one, because 3D points not the same
-    'min_baseline': 1.,
-    'max_baseline': 7.,
-
-    'resize': 720, #?
-    'resize_by': 'min',
-    'crop': 720, #?
-    'optimal_crop': False,
-    'seed': 1,
     'num_workers': 0,
 }
-# dataset = CMU(conf)
-# loader = dataset.get_data_loader('train', shuffle=True)  # or 'train' ‘val’
 dataset = Kitti(conf)
 loader = dataset.get_data_loader('train', shuffle=True)  # or 'train' ‘val’
 val_loader = dataset.get_data_loader('val', shuffle=True)  # or 'train' ‘val’
+test_loader = dataset.get_data_loader('test', shuffle=True)
 
 # Name of the example experiment. Replace with your own training experiment.
-exp = 'pixloc_kitti' #run_CMU.experiment
+exp = 'pixloc_kitti'
 device = 'cuda'
 conf = {
     'normalize_dt': False,
     'optimizer': {'num_iters': 20,},
 }
 refiner = load_experiment(exp, conf,get_last=True).to(device)
-#refiner.load_state_dict(torch.load('/home/shan/projects/localization/pixloc/pixloc/parameterModel_best.pth'))
 print(OmegaConf.to_yaml(refiner.conf))
-
 
 class Logger:
     def __init__(self, optimizers=None):
@@ -206,6 +193,51 @@ def Val(refiner, val_loader, save_path, best_result):
         torch.save(refiner.state_dict(), save_path + 'Model_best.pth')
     return acc
 
+def test(refiner, test_loader):
+    refiner.eval()
+    errR = torch.tensor([])
+    errlong = torch.tensor([])
+    errlat = torch.tensor([])
+    for idx, data in enumerate(test_loader):
+        data_ = batch_to_device(data, device)
+        logger.set(data_)
+        pred_ = refiner(data_)
+        #losses = refiner.loss(pred_, data_)
+        metrics = refiner.metrics(pred_, data_)
+
+        errR = torch.cat([errR, metrics['R_error'].cpu().data], dim=0)
+        errlong = torch.cat([errlong, metrics['long_error'].cpu().data], dim=0)
+        errlat = torch.cat([errlat, metrics['lat_error'].cpu().data], dim=0)
+
+        del pred_, data_
+
+    # if lat <= 0.2 and long <= 0.4 and R < 1: #requerment of Ford
+    print(f'acc of lat<=0.25:{torch.sum(errlat <= 0.25) / errlat.size(0)}')
+    print(f'acc of lat<=0.5:{torch.sum(errlat <= 0.5) / errlat.size(0)}')
+    print(f'acc of lat<=1:{torch.sum(errlat <= 1) / errlat.size(0)}')
+    print(f'acc of lat<=2:{torch.sum(errlat <= 2) / errlat.size(0)}')
+
+    print(f'acc of long<=0.25:{torch.sum(errlong <= 0.25) / errlong.size(0)}')
+    print(f'acc of long<=0.5:{torch.sum(errlong <= 0.5) / errlong.size(0)}')
+    print(f'acc of long<=1:{torch.sum(errlong <= 1) / errlong.size(0)}')
+    print(f'acc of lat<=2:{torch.sum(errlong <= 2) / errlong.size(0)}')
+
+    print(f'acc of R<=0.5:{torch.sum(errR <= 0.5) / errR.size(0)}')
+    print(f'acc of R<=1:{torch.sum(errR <= 1) / errR.size(0)}')
+    print(f'acc of R<=2:{torch.sum(errR <= 2) / errR.size(0)}')
+    print(f'acc of R<=4:{torch.sum(errR <= 4) / errR.size(0)}')
+
+    print(
+        f'acc of lat/long<0.25/R<0.5:{torch.sum(torch.logical_and(torch.logical_and(errlat <= 0.25, errlong <= 0.25), errR <= 0.5)) / errR.size(0)}')
+    print(
+        f'acc of lat/long<0.5/R<1:{torch.sum(torch.logical_and(torch.logical_and(errlat <= 0.5, errlong <= 0.5), errR <= 1)) / errR.size(0)}')
+    print(
+        f'acc of lat/long<1/R<2:{torch.sum(torch.logical_and(torch.logical_and(errlat <= 1, errlong <= 1), errR <= 2)) / errR.size(0)}')
+    print(
+        f'acc of lat/long<2/R<4:{torch.sum(torch.logical_and(torch.logical_and(errlat <= 2, errlong <= 2), errR <= 4)) / errR.size(0)}')
+
+    return
+
 
 
 if __name__ == '__main__':
@@ -214,6 +246,9 @@ if __name__ == '__main__':
 
     save_path = 'parameter'
 
-    if 1: # test val
+    if 1: # test
+        test(refiner, test_loader)
+    if 0: # val
         Val(refiner, val_loader, save_path, 0)
-    Train(refiner, loader, val_loader, 5, save_path)
+    if 0: # train
+        Train(refiner, loader, val_loader, 5, save_path)

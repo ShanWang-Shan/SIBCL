@@ -73,7 +73,7 @@ class Kitti(BaseDataset):
         pass
 
     def get_dataset(self, split):
-        assert split != 'test', 'Not supported'
+        #assert split != 'test', 'Not supported'
         return _Dataset(self.conf, split)
 
 def read_calib(calib_file_name):
@@ -224,25 +224,29 @@ class _Dataset(Dataset):
             lines = txt_f.readlines()
             for line in lines:
                 line = line.strip()
+                # check grb file exist
+                grb_file_name = os.path.join(self.root, grdimage_dir, line[:38], left_color_camera_dir,
+                                                  line[38:].lower())
+                if not os.path.exists(grb_file_name):
+                    # ignore frames with out velodyne
+                    print(grb_file_name + ' do not exist!!!')
+                    continue
+
                 velodyne_file_name = os.path.join(self.root, grdimage_dir, line[:38], vel_dir,
                                                   line[38:].lower().replace('.png', '.bin'))
                 if not os.path.exists(velodyne_file_name):
                     # ignore frames with out velodyne
                     print(velodyne_file_name + ' do not exist!!!')
-                else:
-                    self.file_name.append(line)
+                    continue
 
-                    if 0: # for debug
-                        if split == 'val':
-                            if len(self.file_name) > 5:
-                                break
+                self.file_name.append(line)
 
         if 0:  # for debug
             if split == 'train':
-                self.file_name = random.sample(self.file_name, len(self.file_name)//2)
+                self.file_name = random.sample(self.file_name, len(self.file_name)//6)
 
             if split == 'val':
-                self.file_name = random.sample(self.file_name, len(self.file_name)//2)
+                self.file_name = random.sample(self.file_name, len(self.file_name)//6)
 
     def __len__(self):
         return len(self.file_name)
@@ -392,10 +396,10 @@ class _Dataset(Dataset):
         }
 
         # ramdom shift translation and ratation on yaw
-        YawShiftRange = 10 * np.pi / 180  # in 10 degree
+        YawShiftRange = 6 * np.pi / 180  # in 10 degree
         yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
         R_yaw = torch.tensor([[np.cos(yaw), 0, np.sin(yaw)], [0, 1, 0], [-np.sin(yaw), 0, np.cos(yaw)]])
-        TShiftRange = 5  # in 5 meter
+        TShiftRange = 3  # in 5 meter
         T = 2 * TShiftRange * np.random.rand((3)) - TShiftRange
         T[1] = 0  # no shift on height
         #print(f'in dataset: yaw:{yaw/np.pi*180},t:{T}')
@@ -421,6 +425,11 @@ class _Dataset(Dataset):
         }
 
         # debug
+        if 0:
+            image = transforms.functional.to_pil_image(grd_left, mode='RGB')
+            image.save('grd.png')
+            image = transforms.functional.to_pil_image(sat_map, mode='RGB')
+            image.save('sat.png')
         if 0:
             fig = plt.figure(figsize=plt.figaspect(0.5))
             ax1 = fig.add_subplot(1, 2, 1)
