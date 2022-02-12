@@ -227,11 +227,13 @@ def training(rank, conf, output_dir, args):
         logger.info('Data in overfitting mode')
         assert not args.distributed
         train_loader = dataset.get_overfit_loader('train')
-        val_loader = dataset.get_overfit_loader('val')
+        #val_loader = dataset.get_overfit_loader('val')
+        val_loader = dataset.get_overfit_loader('test')
     else:
         train_loader = dataset.get_data_loader(
             'train', distributed=args.distributed)
-        val_loader = dataset.get_data_loader('val')
+        #val_loader = dataset.get_data_loader('val')
+        val_loader = dataset.get_data_loader('test')
     if rank == 0:
         logger.info(f'Training loader has {len(train_loader)} batches')
         logger.info(f'Validation loader has {len(val_loader)} batches')
@@ -441,14 +443,14 @@ def main_worker(rank, conf, output_dir, args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--experiment', type=str, default='pixloc_kitti_105')
+    parser.add_argument('--experiment', type=str, default='pixloc_kitti')
     parser.add_argument('--conf', type=str)
     parser.add_argument('--overfit', action='store_true', default=False)
     parser.add_argument('--restore', action='store_true', default=True)
     parser.add_argument('--distributed', action='store_true',default=False)
     parser.add_argument('--dotlist', nargs='*', default=["data.name=kitti","data.max_num_points3D=10000","data.force_num_points3D=False",
                                                          "data.num_workers=0","data.batch_size=1","train.eval_every_iter=10000","train.lr=1e-2",
-                                                         "model.optimizer.num_iters=15"])
+                                                         "model.optimizer.num_iters=15"]) #,"train.log_every_iter=1"
     args = parser.parse_intermixed_args()
 
     logger.info(f'Starting experiment {args.experiment}')
@@ -484,5 +486,5 @@ if __name__ == '__main__':
             main_worker, nprocs=args.n_gpus,
             args=(conf, output_dir, args))
     else:
-        os.environ["CUDA_VISIBLE_DEVICES"] = '1'
+        os.environ["CUDA_VISIBLE_DEVICES"] = '0'
         main_worker(0, conf, output_dir, args)
