@@ -13,7 +13,7 @@ from .utils import checkpointed
 from copy import deepcopy
 
 # for 1 unet test
-HAVE_SAT = False 
+HAVE_SAT = False
 
 class DecoderBlock(nn.Module):
     def __init__(self, previous, skip, out, num_convs=1, norm=nn.BatchNorm2d):
@@ -173,6 +173,7 @@ class UNet(BaseModel):
 
         # add by shan, for sat images
         if HAVE_SAT:
+            self.sat_start_layer = -1
             self.add_sat_branch()
             #self.add_sat_unet()
 
@@ -181,29 +182,26 @@ class UNet(BaseModel):
             self.uncertainty = nn.ModuleList(uncertainty)
 
     def _forward(self, data):
-        if HAVE_SAT:
-            if 'type' in data.keys() and data['type'] == 'sat':
-                encoder = self.sat_encoder
-                # decoder = self.sat_decoder
-                # adaptation = self.sat_adaptation
-            else:
-                encoder = self.encoder
-                # decoder = self.decoder
-                # adaptation = self.adaptation
-        else:
-            encoder = self.encoder
-            # decoder = self.decoder
-            # adaptation = self.adaptation
-
         image = data['image']
         mean, std = image.new_tensor(self.mean), image.new_tensor(self.std)
         image = (image - mean[:, None, None]) / std[:, None, None]
 
         skip_features = []
         features = image
-        for block in encoder:
-            features = block(features)
-            skip_features.append(features)
+        # for block in encoder:
+        #     features = block(features)
+        #     skip_features.append(features)
+        if HAVE_SAT and 'type' in data.keys() and data['type'] == 'sat':
+            for block in self.encoder[:self.sat_start_layer]:
+                features = block(features)
+                skip_features.append(features)
+            for block in self.sat_encoder:
+                features = block(features)
+                skip_features.append(features)
+        else:
+            for block in self.encoder:
+                features = block(features)
+                skip_features.append(features)
 
         if self.conf.decoder:
             pre_features = [skip_features[-1]]
@@ -243,11 +241,11 @@ class UNet(BaseModel):
         # high_encoder = self.encoder[2:]
         # sat_low_decoder = deepcopy(self.encoder[:2])
         # only not share weight in last layer of encoder
-        high_encoder = deepcopy(self.encoder[-1:])
-        sat_low_decoder = self.encoder[:-1]
+        high_encoder = deepcopy(self.encoder[self.sat_start_layer:])
+        # sat_low_encoder = self.encoder[:-1]
         blocks = []
-        for block in sat_low_decoder:
-            blocks.append(block)
+        # for block in sat_low_encoder:
+        #     blocks.append(block)
         for block in high_encoder:
             blocks.append(block)
         self.sat_encoder = nn.ModuleList(blocks)
