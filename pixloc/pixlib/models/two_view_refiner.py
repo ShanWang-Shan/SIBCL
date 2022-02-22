@@ -28,6 +28,20 @@ cal_confidence = 3 # 0: no confidence, 1:only ref 2: only query, 3:both query an
 no_opt = False
 pose_loss = 2 # 0:without l1 loss, 1: with gt l1 loss, 2: with gt-init l1 loss
 
+def get_weight_from_reproloss(err):
+    # the reprojection loss is from 0 to 16.67 ,tensor[B]
+    weight = torch.zeros_like(err)
+    #  when err bigger than 10, set weight to 10
+    weight[err > 10.] = 10
+    #  when err bigger than 20, set weight to 25
+    weight[err > 20.] = 25
+    #  when err bigger than 30, set weight to 50
+    weight[err > 30.] = 50
+    #  when loss bigger than 40, set weight to 100
+    weight[err > 40.] = 100
+
+    return weight
+
 class TwoViewRefiner(BaseModel):
     default_conf = {
         'extractor': {
@@ -268,7 +282,8 @@ class TwoViewRefiner(BaseModel):
             # add by shan, query & reprojection GT error, for query unet back propogate
             if pose_loss:
                 losses['pose_loss'] += pred['pose_loss'][i]/ num_scales
-                poss_loss_weight = 5 
+                # poss_loss_weight = 5
+                poss_loss_weight = get_weight_from_reproloss(err)
                 losses['total'] += poss_loss_weight * losses['pose_loss']
 
         losses['reprojection_error'] = err

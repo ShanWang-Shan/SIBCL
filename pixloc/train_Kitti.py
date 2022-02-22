@@ -31,7 +31,7 @@ val_loader = dataset.get_data_loader('val', shuffle=True)  # or 'train' â€˜valâ€
 test_loader = dataset.get_data_loader('test', shuffle=True)
 
 # Name of the example experiment. Replace with your own training experiment.
-exp = 'pixloc_kitti'
+exp = 'pixloc_63'#'pixloc_kitti' # 'pixloc_63' #'pixloc_63_domain'
 device = 'cuda'
 conf = {
     'normalize_dt': False,
@@ -144,18 +144,18 @@ def Val(refiner, val_loader, save_path, best_result):
             plot_images([imr, imq],
                         dpi=50,  # set to 100-200 for higher res
                         titles=[(data['scene'], valid_r.sum().item(), valid_q.sum().item()), errP + errt])
-            plot_keypoints([p2D_r_gt[valid], p2D_q[valid_q]], colors='lime') #[cm_RdGn(valid[valid_q]), 'lime'])
-            plot_keypoints([p2D_q_init[valid], np.empty((0, 2))], colors='red')
-            plot_keypoints([p2D_q_opt[valid], np.empty((0, 2))], colors='blue')
-            add_text(0, 'reference')
-            add_text(1, 'query')
+            # plot_keypoints([p2D_r_gt[valid], p2D_q[valid_q]], colors='lime') #[cm_RdGn(valid[valid_q]), 'lime'])
+            # plot_keypoints([p2D_q_init[valid], np.empty((0, 2))], colors='red')
+            # plot_keypoints([p2D_q_opt[valid], np.empty((0, 2))], colors='blue')
+            # add_text(0, 'reference')
+            # add_text(1, 'query')
             plt.show()
 
             #continue
             for i, (F0, F1) in enumerate(zip(pred['ref']['feature_maps'], pred['query']['feature_maps'])):
                 C_r, C_q = pred['ref']['confidences'][i][0], pred['query']['confidences'][i][0]
                 plot_images([C_r, C_q], cmaps=mpl.cm.turbo, dpi=50)
-                add_text(0, f'Level {i}')
+                #add_text(0, f'Level {i}')
 
                 axes = plt.gcf().axes
                 axes[0].imshow(imr, alpha=0.2, extent=axes[0].images[0]._extent)
@@ -222,19 +222,14 @@ def test(refiner, test_loader):
     print(f'acc of long<=1:{torch.sum(errlong <= 1) / errlong.size(0)}')
     print(f'acc of lat<=2:{torch.sum(errlong <= 2) / errlong.size(0)}')
 
-    print(f'acc of R<=0.5:{torch.sum(errR <= 0.5) / errR.size(0)}')
+    # print(f'acc of R<=0.5:{torch.sum(errR <= 0.5) / errR.size(0)}')
     print(f'acc of R<=1:{torch.sum(errR <= 1) / errR.size(0)}')
     print(f'acc of R<=2:{torch.sum(errR <= 2) / errR.size(0)}')
     print(f'acc of R<=4:{torch.sum(errR <= 4) / errR.size(0)}')
 
-    print(
-        f'acc of lat/long<0.25/R<0.5:{torch.sum(torch.logical_and(torch.logical_and(errlat <= 0.25, errlong <= 0.25), errR <= 0.5)) / errR.size(0)}')
-    print(
-        f'acc of lat/long<0.5/R<1:{torch.sum(torch.logical_and(torch.logical_and(errlat <= 0.5, errlong <= 0.5), errR <= 1)) / errR.size(0)}')
-    print(
-        f'acc of lat/long<1/R<2:{torch.sum(torch.logical_and(torch.logical_and(errlat <= 1, errlong <= 1), errR <= 2)) / errR.size(0)}')
-    print(
-        f'acc of lat/long<2/R<4:{torch.sum(torch.logical_and(torch.logical_and(errlat <= 2, errlong <= 2), errR <= 4)) / errR.size(0)}')
+    print(f'mean errR:{torch.mean(errR)},errlat:{torch.mean(errlat)},errlong:{torch.mean(errlong)}')
+    print(f'var errR:{torch.var(errR)},errlat:{torch.var(errlat)},errlong:{torch.var(errlong)}')
+    print(f'median errR:{torch.median(errR)},errlat:{torch.median(errlat)},errlong:{torch.median(errlong)}')
 
     return
 
@@ -247,7 +242,8 @@ if __name__ == '__main__':
     save_path = 'parameter'
 
     if 1: # test
-        test(refiner, test_loader)
+        #test(refiner, test_loader)
+        test(refiner, val_loader)
     if 0: # val
         Val(refiner, val_loader, save_path, 0)
     if 0: # train
