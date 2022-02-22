@@ -284,7 +284,7 @@ class TwoViewRefiner(BaseModel):
                 losses['pose_loss'] += pred['pose_loss'][i]/ num_scales
                 # poss_loss_weight = 5
                 poss_loss_weight = get_weight_from_reproloss(err)
-                losses['total'] += (poss_loss_weight * losses['pose_loss']).clamp(max=self.conf.clamp_error)
+                losses['total'] += (poss_loss_weight * pred['pose_loss'][i]/ num_scales).clamp(max=self.conf.clamp_error/num_scales)
 
         losses['reprojection_error'] = err
         losses['total'] *= (~too_few).float()
