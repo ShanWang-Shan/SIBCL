@@ -32,13 +32,13 @@ def get_weight_from_reproloss(err):
     # the reprojection loss is from 0 to 16.67 ,tensor[B]
     weight = torch.zeros_like(err)
     #  when err bigger than 10, set weight to 10
-    weight[err > 10.] = 10
+    weight[err > 10.] = 1000
     #  when err bigger than 20, set weight to 25
-    weight[err > 20.] = 25
+    weight[err > 20.] = 2500
     #  when err bigger than 30, set weight to 50
-    weight[err > 30.] = 50
+    weight[err > 30.] = 5000
     #  when loss bigger than 40, set weight to 100
-    weight[err > 40.] = 100
+    weight[err > 40.] = 10000
 
     return weight
 
@@ -284,7 +284,7 @@ class TwoViewRefiner(BaseModel):
                 losses['pose_loss'] += pred['pose_loss'][i]/ num_scales
                 # poss_loss_weight = 5
                 poss_loss_weight = get_weight_from_reproloss(err)
-                losses['total'] += poss_loss_weight * losses['pose_loss']
+                losses['total'] += (poss_loss_weight * losses['pose_loss']).clamp(max=self.conf.clamp_error)
 
         losses['reprojection_error'] = err
         losses['total'] *= (~too_few).float()
