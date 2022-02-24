@@ -265,7 +265,6 @@ class TwoViewRefiner(BaseModel):
             return err
 
         err_init = reprojection_error(pred['T_q2r_init'][0])
-        losses['reprojection_error/init'] = err_init
 
         num_scales = len(self.extractor.scales)
         success = None
@@ -291,6 +290,8 @@ class TwoViewRefiner(BaseModel):
 
         losses['reprojection_error'] = err
         losses['total'] *= (~too_few).float()
+
+        losses['reprojection_error/init'] = err_init
 
         return losses
 
