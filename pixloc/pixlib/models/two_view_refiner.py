@@ -264,6 +264,9 @@ class TwoViewRefiner(BaseModel):
             err = masked_mean(err, mask, -1)
             return err
 
+        err_init = reprojection_error(pred['T_q2r_init'][0])
+        losses['reprojection_error/init'] = err_init
+
         num_scales = len(self.extractor.scales)
         success = None
         losses = {'total': 0.}
@@ -283,14 +286,12 @@ class TwoViewRefiner(BaseModel):
             if pose_loss:
                 losses['pose_loss'] += pred['pose_loss'][i]/ num_scales
                 # poss_loss_weight = 5
-                poss_loss_weight = get_weight_from_reproloss(err)
+                poss_loss_weight = get_weight_from_reproloss(err_init)
                 losses['total'] += (poss_loss_weight * pred['pose_loss'][i]/ num_scales).clamp(max=self.conf.clamp_error/num_scales)
 
         losses['reprojection_error'] = err
         losses['total'] *= (~too_few).float()
 
-        err_init = reprojection_error(pred['T_q2r_init'][0])
-        losses['reprojection_error/init'] = err_init
         return losses
 
     def metrics(self, pred, data):
