@@ -210,7 +210,8 @@ class TwoViewRefiner(BaseModel):
                     #diff_loss = (loss_gt-loss_init).clamp(min=-self.conf.clamp_error)
                     #  0.6931 when loss_gt == loss_init
                     # normallize loss_gt & loss_init
-                    diff_loss = torch.log(1 + torch.exp(((loss_gt+1e-8)/(loss_init+1e-8) - 1)))
+                    diff_loss = torch.log(1 + torch.exp((1- (loss_init + 1e-8) / (loss_gt + 1e-8))))
+                    #diff_loss = torch.log(1 + torch.exp(((loss_gt+1e-8)/(loss_init+1e-8) - 1)))
                     #diff_loss = torch.log(1 + torch.exp(10000*(loss_gt-loss_init)))
                     # loss range: => 0~1
                     #diff_loss = torch.clamp_min(loss_gt - loss_init, 0)
