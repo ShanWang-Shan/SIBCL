@@ -295,7 +295,7 @@ def training(rank, conf, output_dir, args):
             raise ValueError(conf.train.lr_schedule.type)
     lr_scheduler = torch.optim.lr_scheduler.MultiplicativeLR(optimizer, lr_fn)
     if args.restore:
-        optimizer.load_state_dict(init_cp['optimizer']) # delte because para not same after add satellite feature extractor
+        #optimizer.load_state_dict(init_cp['optimizer']) # delte because para not same after add satellite feature extractor
         if 'lr_scheduler' in init_cp:
             lr_scheduler.load_state_dict(init_cp['lr_scheduler'])
 
@@ -446,7 +446,7 @@ if __name__ == '__main__':
     parser.add_argument('--restore', action='store_true', default=True)
     parser.add_argument('--distributed', action='store_true',default=False)
     parser.add_argument('--dotlist', nargs='*', default=["data.name=kitti","data.max_num_points3D=10000","data.force_num_points3D=False",
-                                                         "data.num_workers=0","data.batch_size=1","train.eval_every_iter=10000","train.lr=1e-2",
+                                                         "data.num_workers=0","data.batch_size=1","train.eval_every_iter=10000","train.lr=1e-4",
                                                          "model.optimizer.num_iters=15"]) #,"train.log_every_iter=1"
     args = parser.parse_intermixed_args()
 
