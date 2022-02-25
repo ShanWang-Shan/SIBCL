@@ -209,7 +209,9 @@ class TwoViewRefiner(BaseModel):
                     loss_init = self.preject_l1loss(opt, p3D_query, F_ref, F_q, data['T_q2r_init'], cam_ref, mask=mask, W_ref_query=W_ref_q)
                     #diff_loss = (loss_gt-loss_init).clamp(min=-self.conf.clamp_error)
                     #  0.6931 when loss_gt == loss_init
-                    diff_loss = torch.log(1 + torch.exp(10000*(loss_gt-loss_init)))
+                    # normallize loss_gt & loss_init
+                    diff_loss = torch.log(1 + torch.exp(((loss_gt+1e-8)/(loss_init+1e-8) - 1)))
+                    #diff_loss = torch.log(1 + torch.exp(10000*(loss_gt-loss_init)))
                     # loss range: => 0~1
                     #diff_loss = torch.clamp_min(loss_gt - loss_init, 0)
                     pred['pose_loss'].append(diff_loss)
