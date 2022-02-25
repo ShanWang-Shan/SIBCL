@@ -30,15 +30,19 @@ pose_loss = 2 # 0:without l1 loss, 1: with gt l1 loss, 2: with gt-init l1 loss
 
 def get_weight_from_reproloss(err):
     # the reprojection loss is from 0 to 16.67 ,tensor[B]
-    weight = torch.zeros_like(err)
-    #  when err bigger than 10, set weight to 10
-    weight[err > 10.] = 1000
-    #  when err bigger than 20, set weight to 25
-    weight[err > 20.] = 2500
-    #  when err bigger than 30, set weight to 50
-    weight[err > 30.] = 5000
-    #  when loss bigger than 40, set weight to 100
-    weight[err > 40.] = 10000
+
+    weight = torch.ones_like(err)*err
+    weight[err < 10.] = 0
+    weight = torch.clamp(weight, min=0., max=50.)
+    # weight = torch.zeros_like(err)
+    # #  when err bigger than 10, set weight to 10
+    # weight[err > 10.] = 1000
+    # #  when err bigger than 20, set weight to 25
+    # weight[err > 20.] = 2500
+    # #  when err bigger than 30, set weight to 50
+    # weight[err > 30.] = 5000
+    # #  when loss bigger than 40, set weight to 100
+    # weight[err > 40.] = 10000
 
     return weight
 
