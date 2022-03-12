@@ -281,7 +281,7 @@ class _Dataset(Dataset):
         # visible mask
         visible_mask = np.invert(non_visible_mask)
         # get visible point clouds and their projections
-        cam_3d = cam_3d[:, visible_mask]
+        #cam_3d = cam_3d[:, visible_mask] # for debug
 
         # sat
         with Image.open(self.satellite_dict[self.match_pair[idx]], 'r') as SatMap:
@@ -305,20 +305,20 @@ class _Dataset(Dataset):
         _, visible = camera.world2image(torch.from_numpy(cam_3d).float())
         cam_3d = cam_3d[visible]
 
-        num_diff = self.conf.max_num_points3D - len(cam_3d)
-        if num_diff < 0:
-            # select max_num_points
-            sample_idx = np.random.choice(range(len(cam_3d)), self.conf.max_num_points3D)
-            #idx = farthest_point_sample(torch.from_numpy(cam_3d).float(), self.conf.max_num_points3D)
-            cam_3d = cam_3d[sample_idx]
-        elif num_diff > 0 and self.conf.force_num_points3D:
-            point_add = np.ones((num_diff, 3)) * cam_3d[-1]
-            cam_3d = np.vstack((cam_3d, point_add))
+        # num_diff = self.conf.max_num_points3D - len(cam_3d)
+        # if num_diff < 0:
+        #     # select max_num_points
+        #     sample_idx = np.random.choice(range(len(cam_3d)), self.conf.max_num_points3D)
+        #     #idx = farthest_point_sample(torch.from_numpy(cam_3d).float(), self.conf.max_num_points3D)
+        #     cam_3d = cam_3d[sample_idx]
+        # elif num_diff > 0 and self.conf.force_num_points3D:
+        #     point_add = np.ones((num_diff, 3)) * cam_3d[-1]
+        #     cam_3d = np.vstack((cam_3d, point_add))
 
         # grd
         # ground images, left color camera
         log_folder = os.path.join(self.root, self.log_id)
-        query_image_folder = os.path.join(log_folder, self.log_id + "-FL-rectify")
+        query_image_folder = os.path.join(log_folder, self.log_id + "-FL")
         leftname = os.path.join(query_image_folder, self.file_name[idx][:-1])
         with Image.open(leftname, 'r') as GrdImg:
             grd_left = GrdImg.convert('RGB')
