@@ -34,7 +34,7 @@ log_id = "2017-10-26-V2-Log1"
 lidar_dir = 'lidar_blue_pointcloud'
 calib_dir = 'V2'
 satellite_ori_size = 1280
-query_size = [1656, 860]
+query_size = [860, 1656]
 
 
 ToTensor = transforms.Compose([
@@ -161,22 +161,49 @@ class _Dataset(Dataset):
 
         # get calib infor
         calib_folder = os.path.join(self.root, calib_dir)
-        cameraFrontLeftIntrinsics = read_calib_yaml(calib_folder, "cameraFrontLeftIntrinsics.yaml")
-        camera_k = np.asarray(cameraFrontLeftIntrinsics['K']).reshape(3, 3)
-        self.camera_k = torch.from_numpy(np.asarray(camera_k))
-        # camera projection matrix
-        self.camera_p = np.asarray(cameraFrontLeftIntrinsics['P']).reshape(3, 4)
 
-        # get left camera shift from body
-        FL_cameraFrontLeft_body = read_calib_yaml(calib_folder, "cameraFrontLeft_body.yaml")
-        self.offset_body = [FL_cameraFrontLeft_body['transform']['translation']['x'],
-                       FL_cameraFrontLeft_body['transform']['translation']['y']]
-        # self.base_line = np.abs(offset_body[1] * 2)
-        FL_relPose_body = quaternion_matrix(quat_from_pose(FL_cameraFrontLeft_body))
-        FL_relTrans_body = trans_from_pose(FL_cameraFrontLeft_body)
-        FL_relPose_body[0, 3] = FL_relTrans_body[0]
-        FL_relPose_body[1, 3] = FL_relTrans_body[1]
-        FL_relPose_body[2, 3] = FL_relTrans_body[2]
+        # get intrinsic of front left camera and its RT to body
+        FL_K_dict = read_calib_yaml(calib_folder, "cameraFrontLeftIntrinsics.yaml")
+        self.FL_k = np.asarray(FL_K_dict['K']).reshape(3, 3)
+
+        FL2body = read_calib_yaml(calib_folder, "cameraFrontLeft_body.yaml")
+        self.offset_body = [FL2body['transform']['translation']['x'],
+                       FL2body['transform']['translation']['y']]
+        self.FL_relPose_body = quaternion_matrix(quat_from_pose(FL2body))
+        FL_relTrans_body = trans_from_pose(FL2body)
+        self.FL_relPose_body[0, 3] = FL_relTrans_body[0]
+        self.FL_relPose_body[1, 3] = FL_relTrans_body[1]
+        self.FL_relPose_body[2, 3] = FL_relTrans_body[2]
+
+        # RR camera to body coordinate
+        RR_K_dict = read_calib_yaml(calib_folder, "cameraRearRightIntrinsics.yaml")
+        self.RR_k = np.asarray(RR_K_dict['K']).reshape(3, 3)
+        RR2body = read_calib_yaml(calib_folder, "cameraRearRight_body.yaml")
+        self.RR_relPose_body = quaternion_matrix(quat_from_pose(RR2body))
+        RR_relTrans_body = trans_from_pose(RR2body)
+        self.RR_relPose_body[0, 3] = RR_relTrans_body[0]
+        self.RR_relPose_body[1, 3] = RR_relTrans_body[1]
+        self.RR_relPose_body[2, 3] = RR_relTrans_body[2]
+
+        # SL camera to body coordinate
+        SL_K_dict = read_calib_yaml(calib_folder, "cameraSideLeftIntrinsics.yaml")
+        self.SL_k = np.asarray(SL_K_dict['K']).reshape(3, 3)
+        SL2body = read_calib_yaml(calib_folder, "cameraSideLeft_body.yaml")
+        self.SL_relPose_body = quaternion_matrix(quat_from_pose(SL2body))
+        SL_relTrans_body = trans_from_pose(SL2body)
+        self.SL_relPose_body[0, 3] = SL_relTrans_body[0]
+        self.SL_relPose_body[1, 3] = SL_relTrans_body[1]
+        self.SL_relPose_body[2, 3] = SL_relTrans_body[2]
+
+        # SR camera to body coordinate
+        SR_K_dict = read_calib_yaml(calib_folder, "cameraSideRightIntrinsics.yaml")
+        self.SR_k = np.asarray(SR_K_dict['K']).reshape(3, 3)
+        SR2body = read_calib_yaml(calib_folder, "cameraSideRight_body.yaml")
+        self.SR_relPose_body = quaternion_matrix(quat_from_pose(SR2body))
+        SR_relTrans_body = trans_from_pose(SR2body)
+        self.SR_relPose_body[0, 3] = SR_relTrans_body[0]
+        self.SR_relPose_body[1, 3] = SR_relTrans_body[1]
+        self.SR_relPose_body[2, 3] = SR_relTrans_body[2]
 
         # get lidar blue shift from body
         with open(os.path.join(calib_folder, "lidarBlue_body.yaml"), 'r') as stream:
@@ -184,13 +211,13 @@ class _Dataset(Dataset):
                 lidarBlue_body = yaml.safe_load(stream)
             except yaml.YAMLError as exc:
                 print(exc)
-        LidarBlue_relPose_body = quaternion_matrix(quat_from_pose(lidarBlue_body))
-        LidarBlue_relTrans_body = trans_from_pose(lidarBlue_body)
-        LidarBlue_relPose_body[0, 3] = LidarBlue_relTrans_body[0]
-        LidarBlue_relPose_body[1, 3] = LidarBlue_relTrans_body[1]
-        LidarBlue_relPose_body[2, 3] = LidarBlue_relTrans_body[2]
 
-        self.LidarBlue_relPose_FL = inverse_pose(FL_relPose_body) @ LidarBlue_relPose_body
+        # lidar 2 body coordinate
+        self.LidarBlue_relPose_body = quaternion_matrix(quat_from_pose(lidarBlue_body))
+        LidarBlue_relTrans_body = trans_from_pose(lidarBlue_body)
+        self.LidarBlue_relPose_body[0, 3] = LidarBlue_relTrans_body[0]
+        self.LidarBlue_relPose_body[1, 3] = LidarBlue_relTrans_body[1]
+        self.LidarBlue_relPose_body[2, 3] = LidarBlue_relTrans_body[2]
 
         # get original image & location information
         log_folder = os.path.join(self.root, self.log_id )
@@ -247,8 +274,8 @@ class _Dataset(Dataset):
         dy_pixel = -dy / meter_per_pixel
 
         heading = convert_body_yaw_to_360(self.groundview_yaws[idx]) * np.pi / 180.0 # heading of car
-        roll = convert_body_yaw_to_360(self.groundview_rolls[idx]) * np.pi / 180.0
-        pitch = convert_body_yaw_to_360(self.groundview_pitchs[idx]) * np.pi / 180.0
+        roll = self.groundview_rolls[idx] * np.pi / 180.0
+        pitch = self.groundview_pitchs[idx] * np.pi / 180.0
 
         # add the offset between camera and body to shift the center to query camera
         tan_theta = -self.offset_body[1] / self.offset_body[0]
@@ -264,22 +291,21 @@ class _Dataset(Dataset):
         # velodyne_points
         ped_file_name = os.path.join(os.path.join(self.root, self.log_id ), lidar_dir, str(int(self.vel_pair[idx,0]))+'.pcd')
         pcd = o3d.io.read_point_cloud(ped_file_name)
-        pcd.transform(self.LidarBlue_relPose_FL) # move from lidar coordinate to left camera coordinate
+        LidarBlue2FL = inverse_pose(self.FL_relPose_body) @ self.LidarBlue_relPose_body
+        pcd.transform(LidarBlue2FL) # move from lidar coordinate to left camera coordinate
         cam_3d = np.transpose(np.asarray(pcd.points))
-        non_visible_mask = cam_3d[2, :] < 0.0
+        # non_visible_mask = cam_3d[2, :] < 0.0
         # cam_3d = np.concatenate([cam_3d,np.ones_like(cam_3d[:,0:1])],axis=-1) # [n,3]=>[n,4] homogeneous
-        # remove behind image plan
-        # cam_3d = cam_3d[cam_3d[:, 0] >= 0, :]
+        cam_3d = cam_3d.T
 
-        # project the 3D points to image
-        cam_2d1 = self.camera_p[:3, :3] @ cam_3d + self.camera_p[:3, 3][:, None]
-        cam_2d = cam_2d1 / cam_2d1[2, :]
-
-        # update non0-visible mask
-        non_visible_mask = non_visible_mask | (cam_2d[0, :] > query_size[1]) | (cam_2d[0, :] < 0.0)
-        non_visible_mask = non_visible_mask | (cam_2d[1, :] > query_size[0]) | (cam_2d[1, :] < 0.0)
+        # project the 3D points to image and get valid mask
+        # cam_FL_2d1 = self.FL_k @ cam_3d
+        # cam_FL_2d = cam_FL_2d1 / cam_FL_2d1[2, :]
+        # # update non0-visible mask
+        # non_visible_mask = (cam_FL_2d[0, :] > query_size[1]) | (cam_FL_2d[0, :] < 0.0)
+        # non_visible_mask = non_visible_mask | (cam_FL_2d[1, :] > query_size[0]) | (cam_FL_2d[1, :] < 0.0)
         # visible mask
-        visible_mask = np.invert(non_visible_mask)
+        # FL_visible_mask = np.invert(non_visible_mask)
         # get visible point clouds and their projections
         #cam_3d = cam_3d[:, visible_mask] # for debug
 
@@ -288,6 +314,7 @@ class _Dataset(Dataset):
             sat_map = SatMap.convert('RGB')
             sat_map = ToTensor(sat_map)
 
+        # grd: moving derection == east
         grd2sat = np.array([[0,0,1,0],[1,0,0,0],[0,1,0,0],[0,0,0,1]]) #grd z->sat x; grd x->sat y, grd y->sat z
         grd2sat = Pose.from_4x4mat(grd2sat).float()
 
@@ -301,41 +328,121 @@ class _Dataset(Dataset):
         }
 
         # project to sat and find visible mask
-        cam_3d = cam_3d.T
-        _, visible = camera.world2image(torch.from_numpy(cam_3d).float())
+        # sat coordinate to ground(east=z/south=x) coordinate , then, to camera coordinate
+        grd2cam = Pose.from_aa( np.array([pitch, heading,-roll]),np.zeros(3)).float()
+        cam2sat = grd2sat @ (grd2cam.inv())
+        sat_3d = cam2sat * torch.from_numpy(cam_3d).float()
+        _, visible = camera.world2image(sat_3d)
         cam_3d = cam_3d[visible]
 
-        # num_diff = self.conf.max_num_points3D - len(cam_3d)
-        # if num_diff < 0:
-        #     # select max_num_points
-        #     sample_idx = np.random.choice(range(len(cam_3d)), self.conf.max_num_points3D)
-        #     #idx = farthest_point_sample(torch.from_numpy(cam_3d).float(), self.conf.max_num_points3D)
-        #     cam_3d = cam_3d[sample_idx]
-        # elif num_diff > 0 and self.conf.force_num_points3D:
-        #     point_add = np.ones((num_diff, 3)) * cam_3d[-1]
-        #     cam_3d = np.vstack((cam_3d, point_add))
-
-        # grd
-        # ground images, left color camera
+        # grd ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         log_folder = os.path.join(self.root, self.log_id)
-        query_image_folder = os.path.join(log_folder, self.log_id + "-FL")
-        leftname = os.path.join(query_image_folder, self.file_name[idx][:-1])
-        with Image.open(leftname, 'r') as GrdImg:
-            grd_left = GrdImg.convert('RGB')
-            grd_left = ToTensor(grd_left)
 
-        camera_para = (self.camera_k[0,0],self.camera_k[1,1],self.camera_k[0,2],self.camera_k[1,2])
+        # ground images, rear right camera
+        query_image_folder = os.path.join(log_folder, self.log_id + "-RR")
+        name = os.path.join(query_image_folder, self.file_name[idx][:-1])
+        with Image.open(name, 'r') as GrdImg:
+            grd = GrdImg.convert('RGB')
+            grd = ToTensor(grd)
+
+        camera_para = (self.RR_k[0,0],self.RR_k[1,1],self.RR_k[0,2],self.RR_k[1,2])
         camera = Camera.from_colmap(dict(
             model='PINHOLE', params=camera_para,
             width=int(query_size[1]), height=int(query_size[0])))
-        grd_image = {
+        FL2RR = inverse_pose(self.RR_relPose_body) @ self.FL_relPose_body
+        RR_image = {
             # to array, when have multi query
-            'image': grd_left.float(),
+            'image': grd.float(),
             'camera': camera.float(),
-            'T_w2cam': Pose.from_4x4mat(np.eye(4)).float(), #Pose.from_Rt(camera_R, camera_t).float(), # already consider calibration in points3D
+            'T_w2cam': Pose.from_4x4mat(FL2RR).float(), #Pose.from_Rt(camera_R, camera_t).float(), # already consider calibration in points3D
+        }
+        # project the 3D points to image and get valid mask
+        tran_3d = RR_image['T_w2cam'] * torch.from_numpy(cam_3d).float()
+        _, RR_visible = camera.world2image(tran_3d)
+
+        # ground images, side left camera
+        query_image_folder = os.path.join(log_folder, self.log_id + "-SL")
+        name = os.path.join(query_image_folder, self.file_name[idx][:-1])
+        with Image.open(name, 'r') as GrdImg:
+            grd = GrdImg.convert('RGB')
+            grd = ToTensor(grd)
+
+        camera_para = (self.SL_k[0,0],self.SL_k[1,1],self.SL_k[0,2],self.SL_k[1,2])
+        camera = Camera.from_colmap(dict(
+            model='PINHOLE', params=camera_para,
+            width=int(query_size[1]), height=int(query_size[0])))
+        FL2SL = inverse_pose(self.SL_relPose_body) @ self.FL_relPose_body
+        SL_image = {
+            # to array, when have multi query
+            'image': grd.float(),
+            'camera': camera.float(),
+            'T_w2cam': Pose.from_4x4mat(FL2SL).float(), #Pose.from_Rt(camera_R, camera_t).float(), # already consider calibration in points3D
+        }
+
+        # project the 3D points to image and get valid mask
+        tran_3d = SL_image['T_w2cam'] * torch.from_numpy(cam_3d).float()
+        _, SL_visible = camera.world2image(tran_3d)
+
+        # ground images, side right camera
+        query_image_folder = os.path.join(log_folder, self.log_id + "-SR")
+        name = os.path.join(query_image_folder, self.file_name[idx][:-1])
+        with Image.open(name, 'r') as GrdImg:
+            grd = GrdImg.convert('RGB')
+            grd = ToTensor(grd)
+
+        camera_para = (self.SR_k[0,0],self.SR_k[1,1],self.SR_k[0,2],self.SR_k[1,2])
+        camera = Camera.from_colmap(dict(
+            model='PINHOLE', params=camera_para,
+            width=int(query_size[1]), height=int(query_size[0])))
+        FL2SR = inverse_pose(self.SR_relPose_body) @ self.FL_relPose_body
+        SR_image = {
+            # to array, when have multi query
+            'image': grd.float(),
+            'camera': camera.float(),
+            'T_w2cam': Pose.from_4x4mat(FL2SR).float(), #Pose.from_Rt(camera_R, camera_t).float(), # already consider calibration in points3D
+        }
+        # project the 3D points to image and get valid mask
+        tran_3d = SR_image['T_w2cam'] * torch.from_numpy(cam_3d).float()
+        _, SR_visible = camera.world2image(tran_3d)
+
+        # ground images, front left color camera
+        query_image_folder = os.path.join(log_folder, self.log_id + "-FL")
+        name = os.path.join(query_image_folder, self.file_name[idx][:-1])
+        with Image.open(name, 'r') as GrdImg:
+            grd = GrdImg.convert('RGB')
+            grd = ToTensor(grd)
+
+        camera_para = (self.FL_k[0,0],self.FL_k[1,1],self.FL_k[0,2],self.FL_k[1,2])
+        camera = Camera.from_colmap(dict(
+            model='PINHOLE', params=camera_para,
+            width=int(query_size[1]), height=int(query_size[0])))
+
+        # project the 3D points to image and get valid mask
+        _, FL_visible = camera.world2image(torch.from_numpy(cam_3d).float())
+        visible = RR_visible | SL_visible | SR_visible | FL_visible
+        cam_3d = cam_3d[visible]
+
+        num_diff = self.conf.max_num_points3D - len(cam_3d)
+        if num_diff < 0:
+            # select max_num_points
+            sample_idx = np.random.choice(range(len(cam_3d)), self.conf.max_num_points3D)
+            #idx = farthest_point_sample(torch.from_numpy(cam_3d).float(), self.conf.max_num_points3D)
+            cam_3d = cam_3d[sample_idx]
+        elif num_diff > 0 and self.conf.force_num_points3D:
+            point_add = np.ones((num_diff, 3)) * cam_3d[-1]
+            cam_3d = np.vstack((cam_3d, point_add))
+
+        FL_image = {
+            # to array, when have multi query
+            'image': grd.float(),
+            'camera': camera.float(),
+            'T_w2cam': Pose.from_4x4mat(np.eye(4)).float(), # already consider calibration in points3D
             'points3D': torch.from_numpy(cam_3d).float() # world is camera coordinates # one for multi
         }
 
+        grd_image = (FL_image, RR_image, SL_image, SR_image)
+
+        # init and gt pose~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # ramdom shift translation and ratation on yaw
         YawShiftRange = 6 * np.pi / 180  # in 10 degree
         yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
@@ -345,66 +452,98 @@ class _Dataset(Dataset):
         T[1] = 0  # no shift on height
         #print(f'in dataset: yaw:{yaw/np.pi*180},t:{T}')
 
-        r2q_gt = Pose.from_aa( np.array([pitch,heading,-roll]),np.zeros(3)).float()
-        #r2q_gt = r2q_gt@(Pose.from_Rt(camera_R, camera_t).inv().float()) # cancel camera_grd calibration
-        r2q_init = Pose.from_Rt(R_yaw,T).float()
-        r2q_init = r2q_gt@r2q_init
-
-        # add grd2sat into gt and init
-        q2r_gt = grd2sat @ (r2q_gt.inv())
-        q2r_init = grd2sat @ (r2q_init.inv())
+        # add random yaw and t to init pose
+        grd2cam_init = Pose.from_Rt(R_yaw,T).float()
+        grd2cam_init = grd2cam@grd2cam_init
+        cam2sat_init = grd2sat @ (grd2cam_init.inv())
 
         data = {
             'ref': sat_image,
             'query': grd_image,
             'overlap': 0.5,
-            'T_q2r_init': q2r_init,
-            'T_q2r_gt': q2r_gt,
+            'T_q2r_init': cam2sat_init,
+            'T_q2r_gt': cam2sat,
         }
 
         # debug
         if 1:
-            fig = plt.figure(figsize=plt.figaspect(0.5))
-            ax1 = fig.add_subplot(1, 2, 1)
-            ax2 = fig.add_subplot(1, 2, 2)
-
-            color_image0 = transforms.functional.to_pil_image(grd_left, mode='RGB')
-            color_image0 = np.array(color_image0)
-            color_image1 = transforms.functional.to_pil_image(sat_map, mode='RGB')
-            color_image1 = np.array(color_image1)
-            grd_2d, _ = grd_image['camera'].world2image(grd_image['points3D']) ##camera 3d to 2d
-            grd_2d = grd_2d.T
-            for j in range(grd_2d.shape[1]):
-                cv2.circle(color_image0, (np.int32(grd_2d[0][j]), np.int32(grd_2d[1][j])), 2, (0, 255, 0),
-                           -1)
-
+            color_image = transforms.functional.to_pil_image(data['ref']['image'], mode='RGB')
+            color_image = np.array(color_image)
             # sat gt green
-            sat_3d = data['T_q2r_gt']*grd_image['points3D']
+            sat_3d = data['T_q2r_gt']*data['query'][0]['points3D']
             sat_2d, _ = sat_image['camera'].world2image(sat_3d)  ##camera 3d to 2d
             sat_2d = sat_2d.T
             for j in range(sat_2d.shape[1]):
-                cv2.circle(color_image1, (np.int32(sat_2d[0][j]), np.int32(sat_2d[1][j])), 2, (0, 255, 0),
+                cv2.circle(color_image, (np.int32(sat_2d[0][j]), np.int32(sat_2d[1][j])), 2, (0, 255, 0),
                            -1)
 
-            # sat init red
-            sat_3d = data['T_q2r_init']* grd_image['points3D']
-            sat_2d, _ = sat_image['camera'].world2image(sat_3d)  ##camera 3d to 2d
-            sat_2d = sat_2d.T
-            for j in range(sat_2d.shape[1]):
-                cv2.circle(color_image1, (np.int32(sat_2d[0][j]), np.int32(sat_2d[1][j])), 2, (255, 0, 0),
-                           -1)
+            # # sat init red
+            # sat_3d = data['T_q2r_init']* grd_image['points3D']
+            # sat_2d, _ = sat_image['camera'].world2image(sat_3d)  ##camera 3d to 2d
+            # sat_2d = sat_2d.T
+            # for j in range(sat_2d.shape[1]):
+            #     cv2.circle(color_image, (np.int32(sat_2d[0][j]), np.int32(sat_2d[1][j])), 2, (255, 0, 0),
+            #                -1)
 
-            ax1.imshow(color_image0)
-            ax2.imshow(color_image1)
+            plt.imshow(color_image)
             # camera position
-            ax2.scatter(x=cam_location_x, y=cam_location_y, c='r', s=30)
+            plt.scatter(x=cam_location_x, y=cam_location_y, c='r', s=30)
             # plot the direction of the body frame
             length_xy = 200.0
             origin = np.array([[cam_location_x], [cam_location_y]])  # origin point
             dx_east = length_xy * np.cos(heading)
             dy_north = length_xy * np.sin(heading)
             V = np.array([[dx_east, dy_north]])
-            ax2.quiver(*origin, V[:, 0], V[:, 1], color=['r'], scale=1000)
+            plt.quiver(*origin, V[:, 0], V[:, 1], color=['r'], scale=1000)
+
+            plt.show()
+
+            fig = plt.figure(figsize=plt.figaspect(0.5))
+            ax1 = fig.add_subplot(2, 2, 1)
+            ax2 = fig.add_subplot(2, 2, 2)
+            ax3 = fig.add_subplot(2, 2, 3)
+            ax4 = fig.add_subplot(2, 2, 4)
+
+            color_image1 = transforms.functional.to_pil_image(data['query'][0]['image'], mode='RGB')
+            color_image1 = np.array(color_image1)
+            grd_3d = data['query'][0]['T_w2cam']*data['query'][0]['points3D']
+            grd_2d, valid = data['query'][0]['camera'].world2image(grd_3d) ##camera 3d to 2d
+            grd_2d = grd_2d[valid].T
+            for j in range(grd_2d.shape[1]):
+                cv2.circle(color_image1, (np.int32(grd_2d[0][j]), np.int32(grd_2d[1][j])), 2, (0, 255, 0),
+                           -1)
+            ax1.imshow(color_image1)
+
+            color_image2 = transforms.functional.to_pil_image(data['query'][1]['image'], mode='RGB')
+            color_image2 = np.array(color_image2)
+            grd_3d = data['query'][1]['T_w2cam']*data['query'][0]['points3D']
+            grd_2d, valid = data['query'][1]['camera'].world2image(grd_3d) ##camera 3d to 2d
+            grd_2d = grd_2d[valid].T
+            for j in range(grd_2d.shape[1]):
+                cv2.circle(color_image2, (np.int32(grd_2d[0][j]), np.int32(grd_2d[1][j])), 2, (0, 255, 0),
+                           -1)
+            ax2.imshow(color_image2)
+
+            color_image3 = transforms.functional.to_pil_image(data['query'][2]['image'], mode='RGB')
+            color_image3 = np.array(color_image3)
+            grd_3d = data['query'][2]['T_w2cam']*data['query'][0]['points3D']
+            grd_2d, valid = data['query'][2]['camera'].world2image(grd_3d) ##camera 3d to 2d
+            grd_2d = grd_2d[valid].T
+            for j in range(grd_2d.shape[1]):
+                cv2.circle(color_image3, (np.int32(grd_2d[0][j]), np.int32(grd_2d[1][j])), 2, (0, 255, 0),
+                           -1)
+            ax3.imshow(color_image3)
+
+            color_image4 = transforms.functional.to_pil_image(data['query'][3]['image'], mode='RGB')
+            color_image4 = np.array(color_image4)
+            grd_3d = data['query'][3]['T_w2cam']*data['query'][0]['points3D']
+            grd_2d, valid = data['query'][3]['camera'].world2image(grd_3d) ##camera 3d to 2d
+            grd_2d = grd_2d[valid].T
+            for j in range(grd_2d.shape[1]):
+                cv2.circle(color_image4, (np.int32(grd_2d[0][j]), np.int32(grd_2d[1][j])), 2, (0, 255, 0),
+                           -1)
+            ax4.imshow(color_image4)
+
             plt.show()
 
         return data
@@ -412,7 +551,7 @@ class _Dataset(Dataset):
 if __name__ == '__main__':
     # test to load 1 data
     conf = {
-        'max_num_points3D': 1500,
+        'max_num_points3D': 20000,
         'force_num_points3D': True,
         'batch_size': 1,
         'min_baseline': 1.,
