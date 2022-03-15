@@ -1,16 +1,9 @@
 data:
-  name: cmu
-  min_overlap: 0.3
-  max_overlap: 1.0
-  max_num_points3D: 512
+  name: kitti 
+  max_num_points3D: 10000 
   force_num_points3D: true
-  max_baseline: 7.0
-  resize: 720
-  resize_by: min
-  crop: 720
-  optimal_crop: false
-  batch_size: 3
-  num_workers: 6
+  batch_size: 1 
+  num_workers: 0 
   seed: 1
 model:
   name: two_view_refiner
