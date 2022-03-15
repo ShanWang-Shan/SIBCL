@@ -20,7 +20,7 @@ pip install -e .
 
 ## Datasets
 
-The codebase can evaluate SIGLNet on 'KITTI-CVL' dataset, hosted [here](https://cvg-data.inf.ethz.ch/pixloc_CVPR2021/checkpoints/).
+We construct our KITTI-CVL dataset by correcting the spatial-consistent satellite counterparts from Google Map \cite{google} according to these GPS tags. More specifically, we find the large region covering the vehicle trajectory and uniformly partition the region into overlapping satellite image patches. Each satellite images patch has a resolution of $1280\times 1280$ pixels, amounting to about 5cm per pixel. This dataset is hosted [here](https://cvg-data.inf.ethz.ch/pixloc_CVPR2021/checkpoints/).
 Weights of the model trained on *KITTI-CVL*, hosted [here](https://cvg-data.inf.ethz.ch/pixloc_CVPR2021/checkpoints/).
 
 
