@@ -5,6 +5,10 @@ The implementation of Satellite Image Guided Localization for Autonomous Vehicle
 ## Abstract
 Existing autonomous vehicle localization techniques are mostly based on a pre-constructed large-scale high-definition 3D map, often captured by using an expensive survey-grade mapping vehicle involving laborious post-processing.  In contrast, using off-the-shelf satellite images as a ready-to-use map to achieve cross-view localization brings an alternative and promising way for low-cost localization.  However, previous cross-view localization methods almost exclusively treat the localization task as an image retrieval problem,  matching a vehicle-captured ground-view image with the satellite image, hence they only achieve coarse level localization. This paper presents a novel and highly accurate cross-view localization method departing from the common wisdom of image retrieval. Specifically, our method develops (1) a Geometric-align Feature Extractor (GaFE) that leverages measured 3D points to bridge the geometric gap between ground view and overhead view, (2) a Pose Aware Branch (PAB) adopting a triplet loss to encourage pose aware feature extracting, and (3) a Recursive Pose Refine Branch (RPRB) using the Levenberg-Marquardt (LM) algorithm to iteratively align the initial pose towards the true vehicle pose. Our method is validated on KITTI dataset as ground view and Google Maps as satellite view. The results demonstrate the superiority of our method in cross-view localization with spatial and angular errors limited to within 1 meter and 2°, respectively.
 
+<p align="center">
+  <a href="https://github.com/ShanWang-Shan/SIGLNet.git"><img src="archetecture.jpg" width="60%"/></a>
+</p>
+
 Thanks to the work of [Paul-Edouard Sarlin](psarlin.com/) et al., the code of this repository borrow heavly from their [psarlin.com/pixloc](https://psarlin.com/pixloc) , and we follw the same pipeline to verify the effectiveness of our solution.
 
 
