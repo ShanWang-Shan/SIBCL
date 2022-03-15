@@ -26,7 +26,7 @@ Weights of the model trained on *KITTI-CVL*, hosted [here](https://cvg-data.inf.
 
 ## Evaluation
 
-To perform the localization, simply launch the corresponding run script:
+To perform the SIGLNet, simply launch the corresponding run script:
 
 ```
 python -m pixloc.evaluation
@@ -34,7 +34,7 @@ python -m pixloc.evaluation
 
 ## Training
 
-To perform the localization, simply launch the corresponding run script:
+To train the SIGLNet, simply launch the corresponding run script:
 
 ```
 python -m pixloc.pixlib.train
