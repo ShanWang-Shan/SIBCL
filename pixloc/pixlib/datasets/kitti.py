@@ -29,12 +29,9 @@ visualise_debug = True
 
 root_dir = '/data/Kitti'
 #root_dir = '/students/u6617221/shan/data'
-test_csv_file_name = 'test.csv'
-ignore_csv_file_name = 'ignore.csv'
 satmap_dir = 'satmap_20'
 grdimage_dir = 'raw_data'
 left_color_camera_dir = 'image_02/data'
-right_color_camera_dir = 'image_03/data'
 oxts_dir = 'oxts/data'
 vel_dir = 'velodyne_points/data'
 
@@ -152,70 +149,26 @@ def project_lidar_to_cam(velodyne, camera_P, camera_k, camera_R, camera_t, lidar
     uv_mask = u_mask & v_mask
     return points2d[:, uv_mask], points3d[:, uv_mask], velodyne_trimed[:, uv_mask]
 
-def project_lidar_to_sat(cam_3d, imu_rot, meter_per_pixel, location):
-    # cam to sat
-    cam2sat = np.eye(4)
-    cam2sat[1,1] = -1 # y=-y
-    cam2sat[2,2] = -1 # z=-z
-    cam2sat = cam2sat@imu_rot
-    sat_3d = cam2sat @ cam_3d
-
-    # convert the world to pixels, with respect to the pixel location
-    sat_2d = sat_3d[:2, :] / meter_per_pixel
-    sat_2d = sat_2d + np.asarray(location)[:, None]
-    # visible mask
-    u_mask = (sat_2d[0] < satellite_ori_size) & (sat_2d[0] > 0)
-    v_mask = (sat_2d[1] < satellite_ori_size) & (sat_2d[1] > 0)
-    sat_mask = u_mask & v_mask
-    # matching 3D locations
-    sat_2d = sat_2d[:, sat_mask].T
-    sat_3d = sat_3d[:3, sat_mask].T
-    cam_3d = cam_3d[:3, sat_mask].T
-
-    return sat_2d, sat_3d, cam_3d
-
-def farthest_point_sample(points, number):
-    """
-       Input:
-           points: point data, [N, *]
-           number: number of samples
-       Return:
-           centroids: sampled point index[N]
-       """
-    centroids = torch.zeros(number).int()
-    distance = torch.ones_like(points[:,0]) * 1e5  # init distance
-
-    farthest = random.randint(0,len(points)-1)  # randam select the first points
-
-    for i in range(number):
-        centroids[i] = farthest  # recoder the farthest point
-        centroid = points[farthest, :]
-        dist = torch.sum((points - centroid) ** 2, -1)  # cal the distance with centroid point
-        mask = dist < distance
-        distance[mask] = dist[mask]  # update distance
-        farthest = torch.max(distance, -1)[1]
-
-    return centroids
-
 class _Dataset(Dataset):
     def __init__(self, conf, split):
         self.root = root_dir
         self.conf = conf
 
-        # satmap NED coords
-        file = os.path.join(self.root, grdimage_dir, 'satellite_gps_center.npy')
-        self.Geodetic = np.load(file)
-        NED_coords_satellite = np.zeros((self.Geodetic.shape[0], 3))
-        for i in range(self.Geodetic.shape[0]):
-            x, y, z = gps_func.GeodeticToEcef(self.Geodetic[i, 0] * np.pi / 180.0, self.Geodetic[i, 1] * np.pi / 180.0,
-                                              self.Geodetic[i, 2])
-            xEast, yNorth, zUp = gps_func.EcefToEnu(x, y, z, self.Geodetic[0, 0] * np.pi / 180.0,
-                                                    self.Geodetic[0, 1] * np.pi / 180.0, self.Geodetic[0, 2])
-            NED_coords_satellite[i, 0] = xEast
-            NED_coords_satellite[i, 1] = yNorth
-            NED_coords_satellite[i, 2] = zUp
-        self.neigh = NearestNeighbors(n_neighbors=1)    
-        self.neigh.fit(NED_coords_satellite)
+        # # satmap NED coords
+        # file = os.path.join(self.root, grdimage_dir, 'satellite_gps_center.npy')
+        # self.Geodetic = np.load(file)
+        # NED_coords_satellite = np.zeros((self.Geodetic.shape[0], 3))
+        # for i in range(self.Geodetic.shape[0]):
+        #     x, y, z = gps_func.GeodeticToEcef(self.Geodetic[i, 0] * np.pi / 180.0, self.Geodetic[i, 1] * np.pi / 180.0,
+        #                                       self.Geodetic[i, 2])
+        #     xEast, yNorth, zUp = gps_func.EcefToEnu(x, y, z, self.Geodetic[0, 0] * np.pi / 180.0,
+        #                                             self.Geodetic[0, 1] * np.pi / 180.0, self.Geodetic[0, 2])
+        #     NED_coords_satellite[i, 0] = xEast
+        #     NED_coords_satellite[i, 1] = yNorth
+        #     NED_coords_satellite[i, 2] = zUp
+        # self.neigh = NearestNeighbors(n_neighbors=1)    
+        # self.neigh.fit(NED_coords_satellite)
+        self.sat_pair = np.load(os.path.join(self.root, grdimage_dir, 'groundview_satellite_pair.npy'), allow_pickle=True)
 
         # read form txt files
         self.file_name = []
@@ -268,7 +221,6 @@ class _Dataset(Dataset):
         # computer the relative pose between imu to camera
         imu2cam_H = lidar2cam_H @ imu2lidar_H
         imu2cam_H[:3, 3] += camera_t
-        #imu2cam_eulers = euler_from_matrix(imu2cam_H[:3, :3])
         camera_center_loc = -imu2cam_H[:3, :3].T @ imu2cam_H[:3, 3]
 
         # get location & rotation
@@ -278,8 +230,6 @@ class _Dataset(Dataset):
             content = f.readline().split(' ')
         location = [float(content[0]), float(content[1]), float(content[2])]
         roll, pitch, heading = float(content[3]), float(content[4]), float(content[5])
-        imu_rot = euler_matrix(roll, pitch, heading)
-        cam_rot = euler_matrix(-pitch, -heading, roll)
 
         # read lidar points
         velodyne_file_name = os.path.join(self.root, grdimage_dir, drive_dir, vel_dir,
@@ -302,23 +252,25 @@ class _Dataset(Dataset):
         # velodyne_local: lidar points (3D) which are visible to the image, in the velodyne coordinate system
         _, cam_3d, _ = project_lidar_to_cam(velodyne, camera_P, camera_k, camera_R, camera_t,
                                                          lidar2cam_R, lidar2cam_T, (grd_ori_H,grd_ori_W))
-        # transform these velodyne_local to the IMU coordinate system
-        # velodyne_imu = np.linalg.inv(imu2lidar_H) @ velodyne_local
 
         # satellite map
-        x, y, z = gps_func.GeodeticToEcef(location[0] * np.pi / 180.0, location[1] * np.pi / 180.0, location[2])
-        xEast, yNorth, zUp = gps_func.EcefToEnu(x, y, z, self.Geodetic[0, 0] * np.pi / 180.0,
-                                                self.Geodetic[0, 1] * np.pi / 180.0, self.Geodetic[0, 2])
-        NED_coords_query = np.array([[xEast, yNorth, zUp]])
-        distances, indices = self.neigh.kneighbors(NED_coords_query, return_distance=True)
-        distances = distances.ravel()[0]
-        indices = indices.ravel()[0]
-        # find sat image
-        sat_gps = self.Geodetic[indices]
-        SatMap_name = os.path.join(root_dir, satmap_dir) + "/i" + str(indices) + "_lat_" + str(
-            sat_gps[0]) + "_long_" + str(
-            sat_gps[1]) + "_zoom_" + str(
-            20) + "_size_" + str(640) + "x" + str(640) + "_scale_" + str(2) + ".png"
+        # x, y, z = gps_func.GeodeticToEcef(location[0] * np.pi / 180.0, location[1] * np.pi / 180.0, location[2])
+        # xEast, yNorth, zUp = gps_func.EcefToEnu(x, y, z, self.Geodetic[0, 0] * np.pi / 180.0,
+        #                                         self.Geodetic[0, 1] * np.pi / 180.0, self.Geodetic[0, 2])
+        # NED_coords_query = np.array([[xEast, yNorth, zUp]])
+        # distances, indices = self.neigh.kneighbors(NED_coords_query, return_distance=True)
+        # distances = distances.ravel()[0]
+        # indices = indices.ravel()[0]
+        # # find sat image
+        # sat_gps = self.Geodetic[indices]
+        # SatMap_name = os.path.join(root_dir, satmap_dir) + "/i" + str(indices) + "_lat_" + str(
+        #     sat_gps[0]) + "_long_" + str(
+        #     sat_gps[1]) + "_zoom_" + str(
+        #     20) + "_size_" + str(640) + "x" + str(640) + "_scale_" + str(2) + ".png"
+        SatMap_name = self.sat_pair.item().get(file_name)
+        sat_gps = SatMap_name.split('_')
+        sat_gps = [float(sat_gps[2]), float(sat_gps[4])]
+        SatMap_name = os.path.join(root_dir, satmap_dir,SatMap_name)
         with Image.open(SatMap_name, 'r') as SatMap:
             sat_map = SatMap.convert('RGB')
             sat_map = ToTensor(sat_map)
@@ -329,12 +281,8 @@ class _Dataset(Dataset):
         meter_per_pixel = Kitti_utils.get_meter_per_pixel(scale=1)
         x_sg = int(x_sg / meter_per_pixel)
         y_sg = int(-y_sg / meter_per_pixel)
-        body_location_x = x_sg + satellite_ori_size / 2.0
-        body_location_y = y_sg + satellite_ori_size / 2.0
 
         # add the offset between camera and body to shift the center to query camera
-        # dx_cam = -camera_center_loc[1] / meter_per_pixel
-        # dy_cam = camera_center_loc[0] / meter_per_pixel
         # convert the offset to ploar coordinate
         tan_theta = -camera_center_loc[1] / camera_center_loc[0]
         length_dxy = np.sqrt(
@@ -345,13 +293,6 @@ class _Dataset(Dataset):
         dy_cam_pixel = -np.sin(yaw_FL) * length_dxy / meter_per_pixel
         cam_location_x = x_sg + satellite_ori_size / 2.0 + dx_cam_pixel
         cam_location_y = y_sg + satellite_ori_size / 2.0 + dy_cam_pixel
-
-        # # # # get velodyne_world on the satelite map
-        # sat_2d, sat_3d, cam_3d = project_cam_to_sat(cam_3d, imu_rot, meter_per_pixel, [cam_location_x, cam_location_y])
-        # velodyne_grd = cam_3d[:,sat_mask].T
-
-        # mask = cam_3d[-1] < satellite_ori_size * meter_per_pixel / 2.0
-        # cam_3d = cam_3d[:,mask].T
 
         # sat
         grd2sat = np.array([[0,0,1,0],[1,0,0,0],[0,1,0,0],[0,0,0,1]]) #grd z->sat x; grd x->sat y, grd y->sat z
@@ -364,7 +305,6 @@ class _Dataset(Dataset):
             'image': sat_map.float(),
             'camera': camera.float(),
             'T_w2cam': Pose.from_4x4mat(np.eye(4)).float() # grd 2 sat in q2r, so just eye(4)
-            #'points3D': None # use grd points 3D
         }
 
         # project to sat and find visible mask
@@ -376,7 +316,6 @@ class _Dataset(Dataset):
         if num_diff < 0:
             # select max_num_points
             idx = np.random.choice(range(len(cam_3d)), self.conf.max_num_points3D)
-            #idx = farthest_point_sample(torch.from_numpy(cam_3d).float(), self.conf.max_num_points3D)
             cam_3d = cam_3d[idx]
         elif num_diff > 0 and self.conf.force_num_points3D:
             point_add = np.ones((num_diff, 3)) * cam_3d[-1]
@@ -391,7 +330,7 @@ class _Dataset(Dataset):
             # to array, when have multi query
             'image': grd_left.float(),
             'camera': camera.float(),
-            'T_w2cam': Pose.from_4x4mat(np.eye(4)).float(), #Pose.from_Rt(camera_R, camera_t).float(), # already consider calibration in points3D
+            'T_w2cam': Pose.from_4x4mat(np.eye(4)).float(), # already consider calibration in points3D
             'points3D': torch.from_numpy(cam_3d).float() # world is camera coordinates # one for multi
         }
 
@@ -402,10 +341,8 @@ class _Dataset(Dataset):
         TShiftRange = 3  # in 5 meter
         T = 2 * TShiftRange * np.random.rand((3)) - TShiftRange
         T[1] = 0  # no shift on height
-        #print(f'in dataset: yaw:{yaw/np.pi*180},t:{T}')
 
         r2q_gt = Pose.from_aa( np.array([pitch,heading,-roll]),np.zeros(3)).float()
-        #r2q_gt = r2q_gt@(Pose.from_Rt(camera_R, camera_t).inv().float()) # cancel camera_grd calibration
         r2q_init = Pose.from_Rt(R_yaw,T).float()
         r2q_init = r2q_gt@r2q_init
 
@@ -430,7 +367,7 @@ class _Dataset(Dataset):
             image.save('grd.png')
             image = transforms.functional.to_pil_image(sat_map, mode='RGB')
             image.save('sat.png')
-        if 0:
+        if 1:
             fig = plt.figure(figsize=plt.figaspect(0.5))
             ax1 = fig.add_subplot(1, 2, 1)
             ax2 = fig.add_subplot(1, 2, 2)
@@ -464,15 +401,14 @@ class _Dataset(Dataset):
             ax1.imshow(color_image0)
             ax2.imshow(color_image1)
             # camera position
-            ax2.scatter(x=cam_location_x, y=cam_location_y, c='r', s=30)
-            ax2.scatter(x=body_location_x, y=body_location_y, c='g', s=20)
+            ax2.scatter(x=cam_location_x, y=cam_location_y, c='g', s=30)
             # plot the direction of the body frame
             length_xy = 200.0
-            origin = np.array([[body_location_x], [body_location_y]])  # origin point
+            origin = np.array([[cam_location_x], [cam_location_y]])  # origin point
             dx_east = length_xy * np.cos(heading)
             dy_north = length_xy * np.sin(heading)
             V = np.array([[dx_east, dy_north]])
-            ax2.quiver(*origin, V[:, 0], V[:, 1], color=['r'], scale=1000)
+            ax2.quiver(*origin, V[:, 0], V[:, 1], color=['g'], scale=1000)
             plt.show()
 
         return data
