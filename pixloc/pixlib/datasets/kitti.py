@@ -18,8 +18,6 @@ from matplotlib import pyplot as plt
 import kitti_data_process.Kitti_gps_coord_func as gps_func
 import random
 import cv2
-from glob import glob
-from pixloc.pixlib.datasets.transformations import euler_from_matrix, euler_matrix
 from pixloc.pixlib.geometry import Camera, Pose
 
 root_dir = "/data/dataset/Kitti" # your kitti dir
@@ -27,7 +25,6 @@ satmap_zoom = 18
 satmap_dir = 'satmap_'+str(satmap_zoom)
 grdimage_dir = 'raw_data'
 left_color_camera_dir = 'image_02/data'
-right_color_camera_dir = 'image_03/data'
 oxts_dir = 'oxts/data'
 vel_dir = 'velodyne_points/data'
 
@@ -249,7 +246,6 @@ class _Dataset(Dataset):
         grd2sat = Pose.from_4x4mat(grd2sat)
         q2r_gt = grd2sat @ (grd2cam.inv())
 
-
         # satellite map
         SatMap_name = self.sat_pair.item().get(file_name)
         sat_gps = SatMap_name.split('_')
@@ -299,7 +295,6 @@ class _Dataset(Dataset):
             key_points = torch.cat([key_points, point_add], dim=0)
         grd_image['points3D'] = key_points
 
-
         # ramdom shift translation and ratation on yaw
         YawShiftRange = 15 * np.pi / 180  # in 15 degree
         yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
@@ -329,7 +324,7 @@ class _Dataset(Dataset):
             image.save('grd.png')
             image = transforms.functional.to_pil_image(sat_map, mode='RGB')
             image.save('sat.png')
-        if 0:
+        if 1:
             fig = plt.figure(figsize=plt.figaspect(0.5))
             ax1 = fig.add_subplot(1, 2, 1)
             ax2 = fig.add_subplot(1, 2, 2)

@@ -8,7 +8,7 @@ import os
 SavePlt = False
 visual_path = '../visual_kitti'
 
-Ford_dataset = True
+Ford_dataset = False
 exp = 'kitti'
 
 from pixloc.pixlib.utils.tensor import batch_to_device, map_tensor
