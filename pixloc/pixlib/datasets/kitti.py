@@ -22,9 +22,7 @@ from glob import glob
 from pixloc.pixlib.datasets.transformations import euler_from_matrix, euler_matrix
 from pixloc.pixlib.geometry import Camera, Pose
 
-#root_dir = "/home/shan/data/Kitti"
-root_dir = "/data/dataset/Kitti"
-#root_dir = '/students/u6617221/shan/data'
+root_dir = "/data/dataset/Kitti" # your kitti dir
 satmap_zoom = 18 
 satmap_dir = 'satmap_'+str(satmap_zoom)
 grdimage_dir = 'raw_data'

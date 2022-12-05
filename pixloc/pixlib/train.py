@@ -253,17 +253,14 @@ def training(rank, conf, output_dir, args):
         # fix unet features except confidence
         #model.extractor.fix_parameter_of_feature()
 
-    # add satellite extractor
-    #model.add_sat_extractor()
-
-    # add satellite extractor
+    # add 1c confidence
     #model.add_grd_confidence()
 
     if args.distributed:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
         model = torch.nn.parallel.DistributedDataParallel(
             model, device_ids=[device])#, find_unused_parameters=True)
-        model._set_static_graph() # add by shan
+        model._set_static_graph()
     if rank == 0:
         logger.info(f'Model: \n{model}')
     torch.backends.cudnn.benchmark = True

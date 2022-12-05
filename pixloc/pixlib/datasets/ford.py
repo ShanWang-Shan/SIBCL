@@ -13,7 +13,6 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 import torch
 from matplotlib import pyplot as plt
-#import pixloc.pixlib.datasets.Kitti_gps_coord_func as gps_func
 import ford_data_process.gps_coord_func as gps_func
 import random
 import cv2
@@ -27,10 +26,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True # add for 'broken data stream'
 points_type = 0 # 0: use 3d points from map, 1: use 3d points from lidar blue
 gt_from_gps = True #ture: pose gt from gps, False: pose gt from NED pose gt
 
-#root_dir = "/home/shan/data/FordAV"
-#root_dir = "../../dataset/FordAV"
-root_dir = "/data/dataset/Ford_AV"
-#root_dir = "/data/FordAV"
+root_dir = "/data/dataset/Ford_AV" # your Ford_AV dir
 sat_dir = 'Satellite_Images_18'
 sat_zoom = 18
 log_id_train = "2017-08-04-V2-Log4"
@@ -267,7 +263,6 @@ class _Dataset(Dataset):
         # sat coordinate to ground(east=z/south=x) coordinate , then, to camera coordinate
         body2ned = Pose.from_aa( np.array([roll, pitch, heading]),np.zeros(3)).float()
         # cam->body->ned->sat without translate
-        #cam2sat = ned2sat @ body2ned @ Pose.from_4x4mat(self.FL_relPose_body).float()
         R_fl2body = self.FL_relPose_body.copy()
         R_fl2body[:,3] = 0.
         cam2sat = ned2sat @ body2ned @ Pose.from_4x4mat(R_fl2body).float()

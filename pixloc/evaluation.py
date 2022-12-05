@@ -17,7 +17,6 @@ from pixloc.pixlib.utils.experiments import load_experiment
 from pixloc.visualization.viz_2d import (
     plot_images, plot_keypoints, plot_matches, cm_RdGn,
     features_to_RGB, add_text, save_plot)
-from pixloc.pixlib.models.utils import merge_confidence_map
 
 data_conf = {
     'max_num_points3D': 5000, #both:3976,3D:5000
