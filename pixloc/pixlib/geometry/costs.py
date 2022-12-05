@@ -47,7 +47,7 @@ class DirectAbsoluteCost:
     def residuals(
             self, T_q2r: Pose, camera: Camera, p3D: Tensor,
             F_ref: Tensor, F_query: Tensor,
-            confidences: Optional[Tuple[Tensor, Tensor]] = None,
+            confidences: Optional[Tuple[Tensor, Tensor, int]] = None,
             do_gradients: bool = False):
 
         p3D_r = T_q2r * p3D # q_3d to ref_3d
@@ -56,25 +56,29 @@ class DirectAbsoluteCost:
             F_ref, p2D, return_gradients=do_gradients) # get ref 2d features
         valid = valid & visible
 
-        if confidences is not None:
-            C_ref, C_query = confidences
+        C_ref, C_query, C_count = confidences
 
-            if C_ref is not None:
-                C_ref_p2D, _, _ = self.interpolator(C_ref, p2D, return_gradients=False) # get ref 2d confidence
-                if C_query is not None:
-                    weight = C_ref_p2D * C_query
-                else:
-                    weight = C_ref_p2D
-            else:
-                if C_query is not None:
-                    weight = C_query
-                else:
-                    weight = None
-        else:
-            weight = None
+        C_ref_p2D, _, _ = self.interpolator(C_ref, p2D, return_gradients=False) # get ref 2d confidence
+
+        # the first confidence
+        weight = C_ref_p2D[:, :, 0] * C_query[:, :, 0]
+        if C_count > 1:
+            grd_weight = C_ref_p2D[:, :, 1].detach() * C_query[:, :, 1]
+            weight = weight * grd_weight
+        # if C2_start == 0:
+        #     # only grd confidence:
+        #     # do not gradiant back to ref confidence
+        #     weight = C_ref_p2D[:, :, 0].detach() * C_query[:, :, 0]
+        # else:
+        #     weight = C_ref_p2D[:,:,0] * C_query[:,:,0]
+        # # the second confidence
+        # if C_query.shape[-1] > 1:
+        #     grd_weight = C_ref_p2D[:, :, 1].detach() * C_query[:, :, 1]
+        #     grd_weight = torch.cat([torch.ones_like(grd_weight[:, :C2_start]), grd_weight[:, C2_start:]], dim=1)
+        #     weight = weight * grd_weight
 
         if weight != None:
-            weight = weight.squeeze(-1).masked_fill(~valid, 0.)
+            weight = weight.masked_fill(~(valid), 0.)
             #weight = torch.nn.functional.normalize(weight, p=float('inf'), dim=1) #??
 
         if self.normalize: # huge memory

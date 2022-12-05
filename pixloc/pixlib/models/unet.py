@@ -12,8 +12,7 @@ from .base_model import BaseModel
 from .utils import checkpointed
 from copy import deepcopy
 
-# for 1 unet test
-HAVE_SAT = False
+two_confidence = True # two confidence, 0: used, 1:not use. for better compare between 3D Lidar & on-ground modle
 
 class DecoderBlock(nn.Module):
     def __init__(self, previous, skip, out, num_convs=1, norm=nn.BatchNorm2d):
@@ -33,9 +32,6 @@ class DecoderBlock(nn.Module):
             layers.append(nn.ReLU(inplace=True))
         self.layers = nn.Sequential(*layers)
 
-        # norm is instanceNorm2d when batch is 1
-        #self.norm = nn.InstanceNorm2d(out)
-
     def forward(self, previous, skip):
         upsampled = self.upsample(previous)
         # If the shape of the input map `skip` is not a multiple of 2,
@@ -50,18 +46,6 @@ class DecoderBlock(nn.Module):
 
         # norm is instanceNorm2d when batch is 1
         return self.layers(torch.cat([upsampled, skip], dim=1))
-        # if previous.size(0) == 1:
-        #     if len(self.layers) >= 3:
-        #         # bn is in layers[1]
-        #         out = self.layers[0](torch.cat([upsampled, skip], dim=1))
-        #         if torch.isnan(out).any():
-        #             print('nan in decoder conv')
-        #         out = self.norm(out)
-        #         if torch.isnan(out).any():
-        #             print('nan in decoder inorm')
-        #         return self.layers[2:](out)
-        # else:
-        #     return self.layers(torch.cat([upsampled, skip], dim=1))
 
 class AdaptationBlock(nn.Sequential):
     def __init__(self, inp, out):
@@ -168,14 +152,11 @@ class UNet(BaseModel):
             block = AdaptationBlock(input_, dim)
             adaptation.append(block)
             if conf.compute_uncertainty:
-                uncertainty.append(AdaptationBlock(input_, 1))
+                if two_confidence:
+                    uncertainty.append(AdaptationBlock(input_, 2))
+                else:
+                    uncertainty.append(AdaptationBlock(input_, 1))
         self.adaptation = nn.ModuleList(adaptation)
-
-        # add by shan, for sat images
-        if HAVE_SAT:
-            self.sat_start_layer = -1
-            self.add_sat_branch()
-            #self.add_sat_unet()
 
         self.scales = [2**s for s in conf.output_scales]
         if conf.compute_uncertainty:
@@ -188,20 +169,9 @@ class UNet(BaseModel):
 
         skip_features = []
         features = image
-        # for block in encoder:
-        #     features = block(features)
-        #     skip_features.append(features)
-        if HAVE_SAT and 'type' in data.keys() and data['type'] == 'sat':
-            for block in self.encoder[:self.sat_start_layer]:
-                features = block(features)
-                skip_features.append(features)
-            for block in self.sat_encoder:
-                features = block(features)
-                skip_features.append(features)
-        else:
-            for block in self.encoder:
-                features = block(features)
-                skip_features.append(features)
+        for block in self.encoder:
+            features = block(features)
+            skip_features.append(features)
 
         if self.conf.decoder:
             pre_features = [skip_features[-1]]
@@ -232,20 +202,23 @@ class UNet(BaseModel):
     def metrics(self, pred, data):
         raise NotImplementedError
 
-    def add_sat_unet(self):
-        self.sat_encoder = deepcopy(self.encoder)
-        self.sat_decoder = deepcopy(self.decoder)
-        self.sat_adaptation = deepcopy(self.adaptation)
+    def add_grd_confidence(self):
+        uncertainty = []
+        for input_ in (32,64,512):
+            uncertainty.append(AdaptationBlock(input_, 2))
+        self.uncertainty = nn.ModuleList(uncertainty).cuda()
+    #
+    # def remove_grd_confidence(self):
+    #     uncertainty = []
+    #     for input_ in (32,64,512):
+    #         uncertainty.append(AdaptationBlock(input_, 1))
+    #     self.uncertainty = nn.ModuleList(uncertainty).cuda()
 
-    def add_sat_branch(self):
-        # high_encoder = self.encoder[2:]
-        # sat_low_decoder = deepcopy(self.encoder[:2])
-        # only not share weight in last layer of encoder
-        high_encoder = deepcopy(self.encoder[self.sat_start_layer:])
-        # sat_low_encoder = self.encoder[:-1]
-        blocks = []
-        # for block in sat_low_encoder:
-        #     blocks.append(block)
-        for block in high_encoder:
-            blocks.append(block)
-        self.sat_encoder = nn.ModuleList(blocks)
+    # fix parameter for feature extractor, only need gradiant of confidence
+    def fix_parameter_of_feature(self):
+        for param in self.encoder.parameters():
+            param.requires_grad = False
+        for param in self.decoder.parameters():
+            param.requires_grad = False
+        for param in self.adaptation.parameters():
+            param.requires_grad = False

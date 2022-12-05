@@ -95,7 +95,7 @@ class LearnedOptimizer(BaseOptimizer):
     #     return T, failed
     def _run(self, p3D: Tensor, F_ref: Tensor, F_query: Tensor,
              T_init: Pose, camera: Camera, mask: Optional[Tensor] = None,
-             W_ref_query: Optional[Tuple[Tensor, Tensor]] = None):
+             W_ref_query: Optional[Tuple[Tensor, Tensor, int]] = None):
 
         T = T_init
         J_scaling = None
@@ -117,7 +117,7 @@ class LearnedOptimizer(BaseOptimizer):
             cost, w_loss, _ = self.loss_fn(cost)
             weights = w_loss * valid.float()
             if w_unc is not None:
-                weights *= w_unc
+                weights = weights*w_unc
             if self.conf.jacobi_scaling:
                 J, J_scaling = self.J_scaling(J, J_scaling, valid)
 
@@ -128,11 +128,12 @@ class LearnedOptimizer(BaseOptimizer):
                 delta = delta * J_scaling
 
             # compute the pose update
-            #dt, dw = delta.split([3, 3], dim=-1)
-            dt, dw = delta.split([2, 1], dim=-1)
-            zeros = torch.zeros_like(dw)
-            dw = torch.hstack([zeros,zeros,dw])
-            dt = torch.hstack([dt, zeros])
+            dt, dw = delta.split([3, 3], dim=-1)
+            # dt, dw = delta.split([2, 1], dim=-1)
+            # fix z trans, roll and pitch
+            zeros = torch.zeros_like(dw[:,-1:])
+            dw = torch.cat([zeros,zeros,dw[:,-1:]], dim=-1)
+            dt = torch.cat([dt[:,0:2],zeros], dim=-1)
 
             T_delta = Pose.from_aa(dw, dt)
             T = T_delta @ T

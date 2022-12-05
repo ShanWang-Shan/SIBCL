@@ -8,3 +8,5 @@ scipy
 h5py
 omegaconf
 tensorboard
+open3d
+sklearn

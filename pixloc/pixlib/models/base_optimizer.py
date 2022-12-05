@@ -68,7 +68,8 @@ class BaseOptimizer(BaseModel):
             dR, dt = T_delta.magnitude()
             small_step = ((dt < self.conf.dt_stop_criteria)
                           & (dR < self.conf.dR_stop_criteria))
-            if torch.all(small_step | small_grad):
+            #if torch.all(small_step | small_grad):
+            if torch.all(small_step):
                 stop = True
         return stop
 
@@ -102,7 +103,7 @@ class BaseOptimizer(BaseModel):
 
     def _run(self, p3D: Tensor, F_ref: Tensor, F_query: Tensor,
              T_init: Pose, camera: Camera, mask: Optional[Tensor] = None,
-             W_ref_query: Optional[Tuple[Tensor, Tensor]] = None):
+             W_ref_query: Optional[Tuple[Tensor, Tensor, int]] = None):
 
         T = T_init
         J_scaling = None

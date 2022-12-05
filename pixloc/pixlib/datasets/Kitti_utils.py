@@ -8,7 +8,6 @@ import numpy as np
 import torch
 
 CameraGPS_shift = [1.08, 0.26]
-Satmap_zoom = 20
 Camera_height = 1.65 #meter
 Camera_distance = 0.54 #meter
 
@@ -21,9 +20,6 @@ yaw_fov = 82
 
 def get_grd_fov():
     return yaw_fov, yaw_min
-
-def get_satmap_zoom():
-    return Satmap_zoom
 
 def get_camera_height():
     return Camera_height
@@ -120,7 +116,7 @@ def gps2distance(lat_s, lon_s, lat_d, lon_d ):
     dis = torch.sqrt(torch.pow(x, 2)+torch.pow(y,2))
     return dis
 
-def get_meter_per_pixel(lat=Default_lat, zoom=Satmap_zoom, scale = SatMap_process_edge/SatMap_original_edge):
+def get_meter_per_pixel( zoom, lat=Default_lat, scale = SatMap_process_edge/SatMap_original_edge):
     meter_per_pixel = 156543.03392 * np.cos(lat * np.pi/180.) / (2**zoom)	
     meter_per_pixel /= 2 # because use scale 2 to get satmap 
     meter_per_pixel /= scale

@@ -11,38 +11,28 @@ import numpy as np
 
 from pixloc.pixlib.models.base_model import BaseModel
 from pixloc.pixlib.models import get_model
-from pixloc.pixlib.models.utils import masked_mean
+from pixloc.pixlib.models.utils import masked_mean, merge_confidence_map, extract_keypoints
 from pixloc.pixlib.geometry.losses import scaled_barron
-from pixloc.visualization.viz_2d import features_to_RGB
+from pixloc.visualization.viz_2d import features_to_RGB,plot_images,plot_keypoints
+from pixloc.pixlib.utils.tensor import map_tensor
+import matplotlib as mpl
 
 from matplotlib import pyplot as plt
 from torchvision import transforms
 import cv2
+import time
 
 
 
 logger = logging.getLogger(__name__)
 
-# add by shan
-cal_confidence = 3 # 0: no confidence, 1:only ref 2: only query, 3:both query and ref
-no_opt = False
-pose_loss = 2 # 0:without l1 loss, 1: with gt l1 loss, 2: with gt-init l1 loss
+pose_loss = True
 
 def get_weight_from_reproloss(err):
     # the reprojection loss is from 0 to 16.67 ,tensor[B]
-
     weight = torch.ones_like(err)*err
     weight[err < 10.] = 0
     weight = torch.clamp(weight, min=0., max=50.)
-    # weight = torch.zeros_like(err)
-    # #  when err bigger than 10, set weight to 10
-    # weight[err > 10.] = 1000
-    # #  when err bigger than 20, set weight to 25
-    # weight[err > 20.] = 2500
-    # #  when err bigger than 30, set weight to 50
-    # weight[err > 30.] = 5000
-    # #  when loss bigger than 40, set weight to 100
-    # weight[err > 40.] = 10000
 
     return weight
 
@@ -95,127 +85,56 @@ class TwoViewRefiner(BaseModel):
             if data_type == 'ref':
                 data_i['type'] = 'sat'
             pred_i = self.extractor(data_i)
-            pred_i['camera_pyr'] = [data_i['camera'].scale(1/s)
+            pred_i['camera_pyr'] = [data_i['camera'].scale(1 / s)
                                     for s in self.extractor.scales]
             return pred_i
-
         pred = {i: process_siamese(data[i], i) for i in ['ref', 'query']}
 
         p3D_query = data['query']['points3D']
         T_init = data['T_q2r_init']
-
         pred['T_q2r_init'] = []
         pred['T_q2r_opt'] = []
-        pred['valid_masks'] = []
         pred['pose_loss'] = []
         for i in reversed(range(len(self.extractor.scales))):
             F_ref = pred['ref']['feature_maps'][i]
-            F_q = pred['query']['feature_maps'][i]
             cam_ref = pred['ref']['camera_pyr'][i]
-            cam_q = pred['query']['camera_pyr'][i]
+
             if self.conf.duplicate_optimizer_per_scale:
                 opt = self.optimizer[i]
             else:
                 opt = self.optimizer
 
-            # debug original image
-            if 0:
-                # _,_,H,W = pred['ref']['feature_maps'][i].size()
-                # F_ref = nnF.interpolate(data['ref']['image'], size=(H,W), mode='bilinear')
-                # _, _, H, W = pred['query']['feature_maps'][i].size()
-                # F_q = nnF.interpolate(data['query']['image'], size=(H,W), mode='bilinear')
+            F_q = pred['query']['feature_maps'][i]
+            cam_q = pred['query']['camera_pyr'][i]
 
-                fig = plt.figure(figsize=plt.figaspect(0.5))
-                ax1 = fig.add_subplot(1, 2, 1)
-                ax2 = fig.add_subplot(1, 2, 2)
-                # color_image0 = transforms.functional.to_pil_image(F_q[0], mode='RGB')  # grd
-                # color_image0 = np.array(color_image0)
-                # color_image1 = transforms.functional.to_pil_image(F_ref[0], mode='RGB')  # sat
-                # color_image1 = np.array(color_image1)
-                color_image1, color_image0 = features_to_RGB(F_ref[0].detach().cpu().numpy(), F_q[0].detach().cpu().numpy(), skip=1)
-
-                # sat
-                p3D_ref = data['T_q2r_gt'] * data['query']['points3D']
-                p2D_ref, visible = cam_ref.world2image(p3D_ref)
-                p2D_ref = p2D_ref.cpu().detach()
-                for j in range(p2D_ref.shape[1]):
-                    cv2.circle(color_image1, (np.int32(p2D_ref[0][j][0]), np.int32(p2D_ref[0][j][1])), 2, (255, 0, 0),
-                               -1)
-
-                p3D_q = data['query']['T_w2cam'] * data['query']['points3D']
-                p2D, visible = cam_q.world2image(p3D_q)
-                p2D = p2D.cpu().detach()
-                # valid = valid & visible
-                for j in range(p2D.shape[1]):
-                    cv2.circle(color_image0, (np.int32(p2D[0][j][0]), np.int32(p2D[0][j][1])), 2, (255, 0, 0),
-                               -1)
-
-                ax1.imshow(color_image0)
-                ax2.imshow(color_image1)
-                plt.show()
-
-            # p2D_ref, visible = cam_ref.world2image(p3D_ref)
-            # F_ref, mask, _ = opt.interpolator(F_ref, p2D_ref)
-            # mask &= visible
             p2D_query, visible = cam_q.world2image(data['query']['T_w2cam']*p3D_query)
             F_q, mask, _ = opt.interpolator(F_q, p2D_query)
             mask &= visible
 
-            W_ref_q = None
-            if cal_confidence != 0 and self.extractor.conf.get('compute_uncertainty', False):
-            #if self.extractor.conf.get('compute_uncertainty', False):
-                W_q = pred['query']['confidences'][i]
-                W_q, _, _ = opt.interpolator(W_q, p2D_query)
-                W_ref = pred['ref']['confidences'][i]
-                # W_ref, _, _ = opt.interpolator(W_ref, p2D_ref)
-
-                if cal_confidence == 1:
-                    # only use confidence of ref
-                    W_ref_q = (W_ref, None)
-                elif cal_confidence == 2:
-                    # only use confidence of query
-                    W_ref_q = (None, W_q)
-                else:
-                    W_ref_q = (W_ref, W_q)
-
+            W_q = pred['query']['confidences'][i]
+            W_q, _, _ = opt.interpolator(W_q, p2D_query)
+            W_ref = pred['ref']['confidences'][i]
+            W_ref_q = (W_ref, W_q, 1)
 
             if self.conf.normalize_features:
-                # F_ref = nnF.normalize(F_ref, dim=2)  # B x N x C
-                # F_q = nnF.normalize(F_q, dim=1)  # B x C x W x H
                 F_q = nnF.normalize(F_q, dim=2)  # B x N x C
                 F_ref = nnF.normalize(F_ref, dim=1)  # B x C x W x H
 
 
-            if no_opt:
-                T_opt = T_init.detach()
-            else:
-                # T_opt, failed = opt(dict(
-                #     p3D=p3D_ref, F_ref=F_ref, F_q=F_q, T_init=T_init, cam_q=cam_q,
-                #     mask=mask, W_ref_q=W_ref_q))
-                T_opt, failed = opt(dict(
-                    p3D=p3D_query, F_ref=F_ref, F_q=F_q, T_init=T_init, camera=cam_ref,
-                    mask=mask, W_ref_q=W_ref_q))
+            T_opt, failed = opt(dict(
+                p3D=p3D_query, F_ref=F_ref, F_q=F_q, T_init=T_init, camera=cam_ref,
+                mask=mask, W_ref_q=W_ref_q))
 
             pred['T_q2r_init'].append(T_init)
             pred['T_q2r_opt'].append(T_opt)
             T_init = T_opt.detach()
 
-            # add by shan, query & reprojection GT error, for query unet back propogate
+            # query & reprojection GT error, for query unet back propogate
             if pose_loss:
                 loss_gt = self.preject_l1loss(opt, p3D_query, F_ref, F_q, data['T_q2r_gt'], cam_ref, mask=mask, W_ref_query=W_ref_q)
-                if pose_loss == 1:
-                    pred['pose_loss'].append(loss_gt)
-                else:
-                    loss_init = self.preject_l1loss(opt, p3D_query, F_ref, F_q, data['T_q2r_init'], cam_ref, mask=mask, W_ref_query=W_ref_q)
-                    #diff_loss = (loss_gt-loss_init).clamp(min=-self.conf.clamp_error)
-                    #  0.6931 when loss_gt == loss_init
-                    # normallize loss_gt & loss_init
-                    diff_loss = torch.log(1 + torch.exp(10*(1- (loss_init + 1e-8) / (loss_gt + 1e-8))))
-                    #diff_loss = torch.log(1 + torch.exp(((loss_gt+1e-8)/(loss_init+1e-8) - 1)))
-                    #diff_loss = torch.log(1 + torch.exp(10000*(loss_gt-loss_init)))
-                    # loss range: => 0~1
-                    #diff_loss = torch.clamp_min(loss_gt - loss_init, 0)
-                    pred['pose_loss'].append(diff_loss)
+                loss_init = self.preject_l1loss(opt, p3D_query, F_ref, F_q, data['T_q2r_init'], cam_ref, mask=mask, W_ref_query=W_ref_q)
+                diff_loss = torch.log(1 + torch.exp(10*(1- (loss_init + 1e-8) / (loss_gt + 1e-8))))
+                pred['pose_loss'].append(diff_loss)
 
         return pred
 
@@ -230,39 +149,23 @@ class TwoViewRefiner(BaseModel):
         cost, w_loss, _ = opt.loss_fn(cost) # robust cost
         loss = cost * valid.float()
         if w_unc is not None:
-            if pose_loss == 1:
-                # do not gradient back to w_unc
-                weight = w_unc.detach()
-                loss = loss * weight
-            else:
-                loss = loss * w_unc
+            loss = loss * w_unc
 
         return torch.sum(loss, dim=-1)/(torch.sum(valid)+1e-6)
 
-    # add by shan for satellite image extractor
-    def add_sat_extractor(self):
-        #self.extractor.add_sat_unet()
-        self.extractor.add_sat_branch()
-        # self.extractor_sat = deepcopy(self.extractor)
+    def add_grd_confidence(self):
+        self.extractor.add_grd_confidence()
 
     def loss(self, pred, data):
         cam_ref = data['ref']['camera']
+        points_3d = data['query']['points3D']
 
         def project(T_q2r):
-            return cam_ref.world2image(T_q2r * data['query']['points3D'])
+            return cam_ref.world2image(T_q2r * points_3d)
 
         p2D_r_gt, mask = project(data['T_q2r_gt'])
         p2D_r_i, mask_i = project(data['T_q2r_init'])
         mask = (mask & mask_i).float()
-
-        too_few = torch.sum(mask, -1) < 10
-        if torch.any(too_few):
-            logger.warning('Few points in batch '+str(data['scene']))
-            # logger.warning(
-            #     'Few points in batch '+str([
-            #         (data['scene'][i], data['ref']['index'][i].item(),
-            #          data['query']['index'][i].item())
-            #         for i in torch.where(too_few)[0]]))
 
         def reprojection_error(T_q2r):
             p2D_r, _ = project(T_q2r)
@@ -288,16 +191,13 @@ class TwoViewRefiner(BaseModel):
             losses[f'reprojection_error/{i}'] = err
             losses['total'] += loss
 
-            # add by shan, query & reprojection GT error, for query unet back propogate
+            # query & reprojection GT error, for query unet back propogate
             if pose_loss:
                 losses['pose_loss'] += pred['pose_loss'][i]/ num_scales
-                # poss_loss_weight = 5
                 poss_loss_weight = get_weight_from_reproloss(err_init)
                 losses['total'] += (poss_loss_weight * pred['pose_loss'][i]/ num_scales).clamp(max=self.conf.clamp_error/num_scales)
 
         losses['reprojection_error'] = err
-        losses['total'] *= (~too_few).float()
-
         losses['reprojection_error/init'] = err_init
 
         return losses
@@ -307,13 +207,8 @@ class TwoViewRefiner(BaseModel):
 
         @torch.no_grad()
         def scaled_pose_error(T_q2r):
-            err_R, err_t = (T_q2r @ T_r2q_gt).magnitude()
-            err_lat, err_long = (T_q2r @ T_r2q_gt).magnitude_latlong()
-            # if self.conf.normalize_dt:
-            #     err_t /= torch.norm(T_r2q_gt.t, dim=-1)
-            # # change for validate lateral error only, change by shan
-            # # return err_R, err_t
-            #     err_x /= T_r2q_gt.magnitude_lateral()
+            err_R, err_t = (T_r2q_gt@T_q2r).magnitude()
+            err_lat, err_long = (T_r2q_gt@T_q2r).magnitude_latlong()
             return err_R, err_t, err_lat, err_long
 
         metrics = {}

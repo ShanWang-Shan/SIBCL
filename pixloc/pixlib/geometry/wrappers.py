@@ -199,17 +199,18 @@ class Pose(TensorWrapper):
         # [[1,0,py],
         #  [0,1,-px],
         #  [0,0,0]]
-        J_t = torch.diag_embed(torch.ones_like(p3d_out))
-        J_rot = -skew_symmetric(p3d_out)
-        J = torch.cat([J_t[...,:2], J_rot[...,-1:]], dim=-1)
-        return J  # N x 3 x 3
-        # # [[1,0,0,0,-pz,py],
-        # #  [0,1,0,pz,0,-px],
-        # #  [0,0,1,-py,px,0]]
         # J_t = torch.diag_embed(torch.ones_like(p3d_out))
         # J_rot = -skew_symmetric(p3d_out)
-        # J = torch.cat([J_t, J_rot], dim=-1)
-        # return J  # N x 3 x 6
+        # J = torch.cat([J_t[...,:2], J_rot[...,-1:]], dim=-1)
+        # return J  # N x 3 x 3
+
+        # [[1,0,0,0,-pz,py],
+        #  [0,1,0,pz,0,-px],
+        #  [0,0,1,-py,px,0]]
+        J_t = torch.diag_embed(torch.ones_like(p3d_out))
+        J_rot = -skew_symmetric(p3d_out)
+        J = torch.cat([J_t, J_rot], dim=-1)
+        return J  # N x 3 x 6
 
     def numpy(self) -> Tuple[np.ndarray]:
         return self.R.numpy(), self.t.numpy()
@@ -227,11 +228,20 @@ class Pose(TensorWrapper):
         return dr, dt
     def magnitude_latlong(self) -> Tuple[torch.Tensor]:
         '''Magnitude of the SE(3) transformation.
+        self is in query coordinates
         Returns:
-            dy: laterral translation distance in meters.
-            dx: longitudinal translation distance in meters.
+            laterral translation distance in meters.
+            longitudinal translation distance in meters.
         '''
-        return torch.abs(self.t[..., -2]), torch.abs(self.t[..., -3])
+        return torch.abs(self.t[..., 0]), torch.abs(self.t[..., -1])
+    def shift_NE(self) -> Tuple[torch.Tensor]:
+        '''shift in north and east, in meter
+        self is in satellite, reference coordinates
+        Returns:
+            north translation distance in meters.
+            east translation distance in meters.
+        '''
+        return -self.t[..., 1], self.t[..., 0]
 
     def __repr__(self):
         return f'Pose: {self.shape} {self.dtype} {self.device}'
@@ -342,15 +352,20 @@ class Camera(TensorWrapper):
 
     def J_project(self, p3d: torch.Tensor):
         if np.infty in self._data:
-            x, y, z = p3d[..., 0], p3d[..., 1], torch.ones_like(p3d[..., 2])
+            x, y = p3d[..., 0], p3d[..., 1]
+            ones = torch.ones_like(x)
+            zero = torch.zeros_like(x)
+            J = torch.stack([
+                ones, zero, zero,
+                zero, ones, zero], dim=-1)
         else:
             x, y, z = p3d[..., 0], p3d[..., 1], p3d[..., 2]
-        zero = torch.zeros_like(z)
-        z = z.clamp(min=self.eps)
-        J = torch.stack([
-            1/z, zero, -x / z**2,
-            zero, 1/z, -y / z**2], dim=-1)
-        J = J.reshape(p3d.shape[:-1]+(2, 3))
+            zero = torch.zeros_like(z)
+            z = z.clamp(min=self.eps)
+            J = torch.stack([
+                1 / z, zero, -x / z ** 2,
+                zero, 1 / z, -y / z ** 2], dim=-1)
+        J = J.reshape(p3d.shape[:-1] + (2, 3))
         return J  # N x 2 x 3
 
     @autocast
@@ -388,6 +403,16 @@ class Camera(TensorWrapper):
              @ self.J_undistort(p2d_dist)
              @ self.J_project(p3d))
         return J, valid
+
+    def image2world(self, p2d: torch.Tensor) -> torch.Tensor:
+        '''Transform 2D pixel coordinates into 3D points, scale unknown .'''
+        p3d_xy = (p2d - self.c.unsqueeze(-2))/self.f.unsqueeze(-2)
+        if np.infty in self._data:
+            # para projection, z unknown
+            p3d = torch.cat([p3d_xy, torch.zeros_like(p3d_xy[..., :1])], dim=-1)
+        else:
+            p3d = torch.cat([p3d_xy, torch.ones_like(p3d_xy[...,:1])], dim=-1)
+        return p3d
 
     def __repr__(self):
         return f'Camera {self.shape} {self.dtype} {self.device}'

@@ -91,7 +91,7 @@ def do_evaluation(model, loader, device, loss_fn, metrics_fn, conf, pbar=True):
     logger.info(f'acc of long<=0.25:{torch.sum(errlong <= 0.25) / errlong.size(0)}')
     logger.info(f'acc of long<=0.5:{torch.sum(errlong <= 0.5) / errlong.size(0)}')
     logger.info(f'acc of long<=1:{torch.sum(errlong <= 1) / errlong.size(0)}')
-    logger.info(f'acc of lat<=2:{torch.sum(errlong <= 2) / errlong.size(0)}')
+    logger.info(f'acc of long<=2:{torch.sum(errlong <= 2) / errlong.size(0)}')
 
     # logger.info(f'acc of R<=0.5:{torch.sum(errR <= 0.5) / errR.size(0)}')
     logger.info(f'acc of R<=1:{torch.sum(errR <= 1) / errR.size(0)}')
@@ -250,14 +250,14 @@ def training(rank, conf, output_dir, args):
     if init_cp is not None:
         model.load_state_dict(init_cp['model'])
 
-        #fix parameter for sat training
-        #for param in model.extractor.parameters():
-        #   param.requires_grad = True
-        #for param in model.extractor_sat.parameters():
-        #   param.requires_grad = True
+        # fix unet features except confidence
+        #model.extractor.fix_parameter_of_feature()
 
     # add satellite extractor
     #model.add_sat_extractor()
+
+    # add satellite extractor
+    #model.add_grd_confidence()
 
     if args.distributed:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
@@ -322,11 +322,6 @@ def training(rank, conf, output_dir, args):
             data = batch_to_device(data, device, non_blocking=True)
             pred = model(data)
             losses = loss_fn(pred, data)
-
-            # combine total loss(RT) & L1 loss, add by shan 
-            #RT_loss_weight = 1
-            #L1_loss_weight = 50 # 16.67/0.6 
-            #loss = RT_loss_weight*torch.mean(losses['total']) + L1_loss_weight*torch.mean(losses['L1_loss'])  # total is total of opt RT losses
             loss = torch.mean(losses['total'])
             #tick = time.time()
             do_backward = loss.requires_grad
@@ -375,16 +370,8 @@ def training(rank, conf, output_dir, args):
 
             del pred, data, loss, losses
 
-            if 0: #for test
-                if it > 2: 
-                    stop = True
-                    break
-
             results = 0
             if (stop or it == (len(train_loader) - 1)):
-            #if (stop or ((it % conf.train.eval_every_iter == 0) and it!=0)):
-            # if (((it % conf.train.eval_every_iter == 0) and it!=0) or stop
-            #       or it == (len(train_loader)-1)):
                 with fork_rng(seed=conf.train.seed):
                     results = do_evaluation(
                         model, val_loader, device, loss_fn, metrics_fn,
@@ -440,14 +427,13 @@ def main_worker(rank, conf, output_dir, args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--experiment', type=str, default='pixloc_kitti')
+    parser.add_argument('--experiment', type=str, default='kitti')
     parser.add_argument('--conf', type=str)
     parser.add_argument('--overfit', action='store_true', default=False)
     parser.add_argument('--restore', action='store_true', default=True)
     parser.add_argument('--distributed', action='store_true',default=False)
-    parser.add_argument('--dotlist', nargs='*', default=["data.name=kitti","data.max_num_points3D=10000","data.force_num_points3D=False",
-                                                         "data.num_workers=0","data.batch_size=1","train.eval_every_iter=10000","train.lr=1e-4",
-                                                         "model.optimizer.num_iters=15"]) #,"train.log_every_iter=1"
+    parser.add_argument('--dotlist', nargs='*', default=["data.name=kitti","data.max_num_points3D=4096","data.force_num_points3D=True",
+                                                         "data.num_workers=0","data.train_batch_size=1","data.test_batch_size=1"])
     args = parser.parse_intermixed_args()
 
     logger.info(f'Starting experiment {args.experiment}')
