@@ -86,6 +86,8 @@ def read_calib(calib_file_name, camera_id='rect_02'):
                 camera_k = np.asarray(camera_k)
                 tx, ty, tz = float(valus[3]), float(valus[7]), float(valus[11])
                 camera_t = np.linalg.inv(camera_k) @ np.asarray([tx, ty, tz])
+                camera_ex = np.hstack((np.eye(3), camera_t.reshape(3,1)))
+                camera_ex = np.vstack((camera_ex, np.array([0,0,0,1])))
             #  add R_rect_00: P_rect_xx * R_rect_00 * (R|T)_velo_to_cam * X
             if 'R_rect_00' in line:
                 items = line.split(':')
@@ -93,9 +95,9 @@ def read_calib(calib_file_name, camera_id='rect_02'):
                 camera_R0 = np.asarray([float(i) for i in valus]).reshape((3, 3))
                 camera_R0 = np.hstack((camera_R0, np.zeros([3, 1])))
                 camera_R0 = np.vstack((camera_R0, np.array([0, 0, 0, 1])))
-        camera_P = camera_P @ camera_R0
+        camera_ex = camera_ex @ camera_R0
 
-    return camera_k, camera_t, camera_P
+    return camera_k, camera_ex
 
 
 def read_sensor_rel_pose(file_name):
@@ -185,14 +187,15 @@ class _Dataset(Dataset):
         image_no = file_name[38:]
 
         # get calibration information, do not adjust image size change here
-        camera_k, camera_t, camera_P = read_calib(
+        camera_k, camera_ex = read_calib(
             os.path.join(self.root, grdimage_dir, day_dir, 'calib_cam_to_cam.txt'))
+        pose_camera_ex = Pose.from_4x4mat(camera_ex)
         imu2lidar_R, imu2lidar_T, imu2lidar_H = read_sensor_rel_pose(
             os.path.join(self.root, grdimage_dir, day_dir, 'calib_imu_to_velo.txt'))
         pose_imu2lidar = Pose.from_4x4mat(imu2lidar_H)
         lidar2cam_R, lidar2cam_T, lidar2cam_H = read_sensor_rel_pose(
             os.path.join(self.root, grdimage_dir, day_dir, 'calib_velo_to_cam.txt'))
-        pose_lidar2cam = Pose.from_4x4mat(lidar2cam_H)
+        pose_lidar2cam = pose_camera_ex @ Pose.from_4x4mat(lidar2cam_H)
         # computer the relative pose between imu to camera
         imu2camera = pose_lidar2cam.compose(pose_imu2lidar)# pose_imu2lidar.inv().compose(pose_lidar2cam.inv())
         camera_center_loc = -imu2camera.transform(np.array([0.,0.,0.]))
@@ -219,7 +222,7 @@ class _Dataset(Dataset):
             grd_ori_W = grd_left.size[0]
             # resize
             grd_left = transforms.functional.resize(grd_left, grd_process_size)
-            # process camera_k and camera_P for resize
+            # process camera_k for resize
             camera_k[0] *=  grd_process_size[1]/grd_ori_size[1]
             camera_k[1] *=  grd_process_size[0]/grd_ori_size[0]
 
@@ -324,7 +327,7 @@ class _Dataset(Dataset):
             image.save('grd.png')
             image = transforms.functional.to_pil_image(sat_map, mode='RGB')
             image.save('sat.png')
-        if 1:
+        if 0:
             fig = plt.figure(figsize=plt.figaspect(0.5))
             ax1 = fig.add_subplot(1, 2, 1)
             ax2 = fig.add_subplot(1, 2, 2)
@@ -394,7 +397,7 @@ class _Dataset(Dataset):
 if __name__ == '__main__':
     # test to load 1 data
     conf = {
-        'max_num_points3D': 256,
+        'max_num_points3D': 1024,
         'force_num_points3D': True,
         'batch_size': 1,
         'min_baseline': 1.,
