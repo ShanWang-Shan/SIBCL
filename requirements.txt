@@ -10,3 +10,4 @@ omegaconf
 tensorboard
 open3d
 sklearn
+setuptools==59.5.0
