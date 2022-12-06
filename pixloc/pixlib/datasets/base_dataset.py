@@ -124,7 +124,7 @@ class BaseDataset(metaclass=ABCMeta):
         default_conf = OmegaConf.merge(
                 OmegaConf.create(self.base_default_conf),
                 OmegaConf.create(self.default_conf))
-        OmegaConf.set_struct(default_conf, True)
+        OmegaConf.set_struct(default_conf, False)
         if isinstance(conf, dict):
             conf = OmegaConf.create(conf)
         self.conf = OmegaConf.merge(default_conf, conf)

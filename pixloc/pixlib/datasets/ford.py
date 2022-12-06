@@ -104,23 +104,8 @@ def inverse_pose(pose):
 
 class FordAV(BaseDataset):
     default_conf = {
-        'dataset_dir': '/data/Kitti',
-
         'two_view': True,
-        'min_overlap': 0.3,
-        'max_overlap': 1.,
-        'min_baseline': None,
-        'max_baseline': None,
-        'sort_by_overlap': False,
-
-        'grayscale': False,
-        'resize': None,
-        'resize_by': 'max',
-        'crop': None,
-        'pad': None,
-        'optimal_crop': True,
         'seed': 0,
-
         'max_num_points3D': 15000,
         'force_num_points3D': False,
     }
@@ -467,13 +452,6 @@ if __name__ == '__main__':
         'max_num_points3D': 1024,
         'force_num_points3D': True,
         'batch_size': 1,
-        'min_baseline': 1.,
-        'max_baseline': 7.,
-
-        'resize': None,
-        'resize_by': 'min',
-        'crop': 720,  # ?
-        'optimal_crop': False,
         'seed': 1,
         'num_workers': 0,
     }
