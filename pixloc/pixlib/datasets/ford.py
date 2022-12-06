@@ -281,7 +281,6 @@ class _Dataset(Dataset):
         sat_image = {
             'image': sat_map.float(),
             'camera': camera.float(),
-            # 'camera_1': camera_gps.float(),
             'T_w2cam': Pose.from_4x4mat(np.eye(4)).float() # grd 2 sat in q2r, so just eye(4)
         }
 
@@ -349,7 +348,6 @@ class _Dataset(Dataset):
         data = {
             'ref': sat_image,
             'query': FL_image,
-            'overlap': 0.5,
             'T_q2r_init': cam2sat_init,
             'T_q2r_gt': cam2sat,
         }

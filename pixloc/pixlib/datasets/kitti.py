@@ -299,10 +299,8 @@ class _Dataset(Dataset):
         data = {
             'ref': sat_image,
             'query': grd_image,
-            'overlap': 0.5,
             'T_q2r_init': q2r_init.float(),
             'T_q2r_gt': q2r_gt.float(),
-            'scene': scene
         }
 
         # debug
