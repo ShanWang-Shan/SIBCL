@@ -154,6 +154,7 @@ def linear_annealing(init, fin, step, start_step=2000, end_step=6000):
     return annealed
 
 def training(rank, conf, output_dir, args):
+    args.restore = False
     if args.restore:
         logger.info(f'Restoring from previous training of {args.experiment}')
         init_cp = get_last_checkpoint(args.experiment, allow_interrupted=False)
@@ -430,7 +431,8 @@ if __name__ == '__main__':
     parser.add_argument('--restore', action='store_true', default=True)
     parser.add_argument('--distributed', action='store_true',default=False)
     parser.add_argument('--dotlist', nargs='*', default=["data.name=kitti","data.max_num_points3D=4096","data.force_num_points3D=True",
-                                                         "data.num_workers=0","data.train_batch_size=1","data.test_batch_size=1"])
+                                                         "data.num_workers=0","data.train_batch_size=1","data.test_batch_size=1",
+                                                         "train.lr=1e-5","model.name=two_view_refiner"])
     args = parser.parse_intermixed_args()
 
     logger.info(f'Starting experiment {args.experiment}')
