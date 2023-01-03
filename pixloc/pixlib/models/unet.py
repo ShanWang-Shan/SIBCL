@@ -12,7 +12,7 @@ from .base_model import BaseModel
 from .utils import checkpointed
 from copy import deepcopy
 
-two_confidence = True # two confidence, 0: used, 1:not use. for better compare between 3D Lidar & on-ground modle
+two_confidence = False # two confidence, 0: used, 1:not use. for better compare between 3D Lidar & on-ground modle
 
 class DecoderBlock(nn.Module):
     def __init__(self, previous, skip, out, num_convs=1, norm=nn.BatchNorm2d):
@@ -203,16 +203,20 @@ class UNet(BaseModel):
         raise NotImplementedError
 
     def add_grd_confidence(self):
-        uncertainty = []
-        for input_ in (32,64,512):
-            uncertainty.append(AdaptationBlock(input_, 2))
-        self.uncertainty = nn.ModuleList(uncertainty).cuda()
-    #
-    # def remove_grd_confidence(self):
-    #     uncertainty = []
-    #     for input_ in (32,64,512):
-    #         uncertainty.append(AdaptationBlock(input_, 1))
-    #     self.uncertainty = nn.ModuleList(uncertainty).cuda()
+        for old_uncertainty in self.uncertainty:
+            in_ch = old_uncertainty[0].weight.shape[1]
+            new_uncertainty = nn.Conv2d(in_ch, 2, kernel_size=1).to(old_uncertainty[0].weight)
+            new_weight = torch.cat([old_uncertainty[0].weight.clone(), new_uncertainty.weight[1:].clone()], dim=0)
+            new_uncertainty.weight = nn.Parameter(new_weight)
+            old_uncertainty[0] = new_uncertainty
+
+    def remove_grd_confidence(self):
+        for old_uncertainty in self.uncertainty:
+            in_ch = old_uncertainty[0].weight.shape[1]
+            new_uncertainty = nn.Conv2d(in_ch, 1, kernel_size=1).to(old_uncertainty[0].weight)
+            new_weight = old_uncertainty[0].weight[:1].clone()
+            new_uncertainty.weight = nn.Parameter(new_weight)
+            old_uncertainty[0] = new_uncertainty
 
     # fix parameter for feature extractor, only need gradiant of confidence
     def fix_parameter_of_feature(self):

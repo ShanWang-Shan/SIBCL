@@ -154,7 +154,6 @@ def linear_annealing(init, fin, step, start_step=2000, end_step=6000):
     return annealed
 
 def training(rank, conf, output_dir, args):
-    args.restore = False
     if args.restore:
         logger.info(f'Restoring from previous training of {args.experiment}')
         init_cp = get_last_checkpoint(args.experiment, allow_interrupted=False)
@@ -250,12 +249,6 @@ def training(rank, conf, output_dir, args):
     loss_fn, metrics_fn = model.loss, model.metrics
     if init_cp is not None:
         model.load_state_dict(init_cp['model'])
-
-        # fix unet features except confidence
-        #model.extractor.fix_parameter_of_feature()
-
-    # add 1c confidence
-    #model.add_grd_confidence()
 
     if args.distributed:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)

@@ -154,12 +154,6 @@ class _Dataset(Dataset):
 
                 self.file_name.append(line)
 
-        if 0:  # for debug
-            if split == 'train':
-                self.file_name = random.sample(self.file_name, len(self.file_name)//10)
-            else:
-                self.file_name = random.sample(self.file_name, len(self.file_name)//20)
-
     def __len__(self):
         return len(self.file_name)
 
