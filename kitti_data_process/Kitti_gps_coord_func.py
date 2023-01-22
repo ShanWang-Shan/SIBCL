@@ -11,7 +11,7 @@ f = (semi_a - semi_b) / semi_a
 eccentricity_square = 2.0 * f - f * f
 eccentricity = np.sqrt(eccentricity_square)
 
-# this is the reference gps for all ford dataset
+# this is the reference gps for all dataset
 gps_ref_lat = 49.03315203474046*np.pi/180.0
 gps_ref_long = 8.337345840397377*np.pi/180.0
 gps_ref_height = 0.0
