@@ -24,7 +24,7 @@ pip install -e .
 
 We construct our KITTI-CVL and Ford-CVL datasets by correcting the spatial-consistent satellite counterparts from Google Map \cite{google} according to these GPS tags. More specifically, we find the large region covering the vehicle trajectory and uniformly partition the region into overlapping satellite image patches. Each satellite image patch has a resolution of $1280\times 1280$ pixels. A script to download the latest satellite images is provided in (kitti/ford_data_process/downloading_satellite_iamges.py). If you need our collected satellite images, please first fill out this [Google Form](https://docs.google.com/forms/d/e/1FAIpQLSclyG85h6lGAsTRL7_B_VSPtjihHEILuyozSVrsl1Sq4uIE2w/viewform?), and we will send you the link for download.
 
-KITTI-CVL: Please first download the raw data (ground images) from [http://www.cvlibs.net/datasets/kitti/raw_data.php]([http://www.cvlibs.net/datasets/kitti/raw_data.php), and store them according to different dates (not category). Your dataset folder structure should be like this:
+KITTI-CVL: Please first download the raw data (ground images) from [http://www.cvlibs.net/datasets/kitti/raw_data.php](http://www.cvlibs.net/datasets/kitti/raw_data.php), and store them according to different dates (not category). Your dataset folder structure should be like this:
 ```
 Kitti/
 ├─ raw_data/
@@ -112,7 +112,8 @@ python -m pixloc.pixlib.train
 Please consider citing our work if you use any of the ideas presented in the paper or code from this repo:
 
 ```
-@inproceedings{wang2023satellite,
+@inproceedings{
+  wang2023satellite,
   title={Satellite image based cross-view localization for autonomous vehicle},
   author={Wang, Shan and Zhang, Yanhao and Vora, Ankit and Perincherry, Akhil and Li, Hengdong},
   booktitle={2023 IEEE International Conference on Robotics and Automation (ICRA)},
