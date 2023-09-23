@@ -1,4 +1,4 @@
-# Satellite Image Guided Localization for Autonomous Vehicle
+# Satellite Image Based Cross-view Localization for Autonomous Vehicle
 
 Satellite Image Based Cross-view Localization for Autonomous Vehicle, Shan Wang, Yanhao Zhang, Ankit Vora, Akhil Perincherry and Hongdong Li, ICRA 2023 [Paper](https://arxiv.org/abs/2207.13506)
 
