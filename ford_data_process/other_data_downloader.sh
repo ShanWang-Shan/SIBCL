@@ -19,11 +19,6 @@ file_dict['2017-10-26-V2-Log4-pcd']='EXq8jhCk-odBiXlRuIBu71YBFhXbmcSmXmNOITD2yEO
 file_dict['2017-10-26-V2-Log5-pcd']='EWCL-kr6EIhHiEShZpsi2JwB5e4FxyJh01sUDKkYLpsg7Q?e=zBdIVT'
 file_dict['2017-10-26-V2-Log6-pcd']='Ecmi_tkvzWdIsS4hV1A-4xMBvGx1cysWe5HxIueaYnoGuA?e=1g9dlE'
 
-file_dict['2017-08-04-V2-Log4-sat18']='EUVR7aEvh9tKgVJjvo4JPskBhxDX-8FmNgdHG0do4-hGrQ?e=XP2cpj'
-file_dict['2017-08-04-V2-Log5-sat18']='EbSMjz-tueRItQszhv5ysQ4BHaIjxIDYzWymTdgDkSnedA?e=hlDpbD'
-file_dict['2017-10-26-V2-Log4-sat18']='EeKCHU9_egVIocQzX-B_FQMBa3KLcUW5YC7op1t7A45dKA?e=O1khcM'
-file_dict['2017-10-26-V2-Log5-sat18']='Eedfhp8nYh9CqMepag-QgcwBgEg9649s6rNwvSFyLxtLqA?e=29I1hu'
-
 for key in "${!file_dict[@]}"; do
   link=${file_dict[$key]}
   name=$key'.tar.gz'
