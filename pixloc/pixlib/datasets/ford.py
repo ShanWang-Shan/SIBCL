@@ -30,6 +30,7 @@ root_dir = "/data/dataset/Ford_AV" # your Ford_AV dir
 sat_dir = 'Satellite_Images_18'
 sat_zoom = 18
 log_id_train = "2017-08-04-V2-Log4"
+log_id_val = "2017-07-24-V2-Log4"
 log_id_test = "2017-10-26-V2-Log4"
 map_points_dir = 'pcd'
 lidar_dir = 'lidar_blue_pointcloud'
@@ -124,6 +125,8 @@ class _Dataset(Dataset):
         self.conf = conf
         if split == 'train':
             self.log_id = log_id_train
+        elif split =='val':
+            self.log_id = log_id_val
         else:
             self.log_id = log_id_test
 
