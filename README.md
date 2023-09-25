@@ -1,4 +1,4 @@
-# Satellite Image Guided Localization for Autonomous Vehicle
+# Satellite Image Based Cross-view Localization for Autonomous Vehicle
 
 Satellite Image Based Cross-view Localization for Autonomous Vehicle, Shan Wang, Yanhao Zhang, Ankit Vora, Akhil Perincherry and Hongdong Li, ICRA 2023 [Paper](https://arxiv.org/abs/2207.13506)
 
@@ -7,7 +7,7 @@ Existing spatial localization techniques for autonomous vehicles mostly use a pr
 While the utilization of satellite imagery for cross-view localization is an established concept, the conventional methodology focuses primarily on image retrieval. This paper introduces a novel approach to cross-view localization that departs from the conventional image retrieval method. Specifically, our method develops (1) a Geometric-align Feature Extractor (GaFE) that leverages measured 3D points to bridge the geometric gap between ground and overhead views, (2) a Pose Aware Branch (PAB) adopting a triplet loss to encourage pose-aware feature extraction, and (3) a Recursive Pose Refine Branch (RPRB) using the Levenberg-Marquardt (LM) algorithm to align the initial pose towards the true vehicle pose iteratively. Our method is validated on KITTI and Ford Multi-AV Seasonal datasets as the ground view and Google Maps as the satellite view. The results demonstrate the superiority of our method in cross-view localization with median spatial and angular errors within $1$ meter and $1^\circ$, respectively.
 
 <p align="center">
-  <a href="https://github.com/ShanWang-Shan/SIGLNet.git"><img src="architecture.jpg" width="100%"/></a>
+  <a href="https://github.com/ShanWang-Shan/SIBCL.git"><img src="architecture.jpg" width="100%"/></a>
 </p>
 
 ## Installation
@@ -15,8 +15,8 @@ While the utilization of satellite imagery for cross-view localization is an est
 SIBCL is built with Python >=3.6 and PyTorch. The package includes code for both training and evaluation. Installing the package locally also installs the minimal dependencies listed in `requirements.txt`:
 
 ``` bash
-git clone https://github.com/ShanWang-Shan/SIGLNet.git
-cd SIGLNet/
+git clone https://github.com/ShanWang-Shan/SIBCL.git
+cd SIBCL/
 pip install -e .
 ```
 
