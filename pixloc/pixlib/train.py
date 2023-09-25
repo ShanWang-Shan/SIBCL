@@ -224,13 +224,11 @@ def training(rank, conf, output_dir, args):
         logger.info('Data in overfitting mode')
         assert not args.distributed
         train_loader = dataset.get_overfit_loader('train')
-        #val_loader = dataset.get_overfit_loader('val')
-        val_loader = dataset.get_overfit_loader('test')
+        val_loader = dataset.get_overfit_loader('val')
     else:
         train_loader = dataset.get_data_loader(
             'train', distributed=args.distributed)
-        #val_loader = dataset.get_data_loader('val')
-        val_loader = dataset.get_data_loader('test')
+        val_loader = dataset.get_data_loader('val')
     if rank == 0:
         logger.info(f'Training loader has {len(train_loader)} batches')
         logger.info(f'Validation loader has {len(val_loader)} batches')
