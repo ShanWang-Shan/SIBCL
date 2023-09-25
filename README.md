@@ -87,6 +87,9 @@ FordAV/
 └─ V2/
 ```
 
+To update your dataset path, you can modify the "default_conf.dataset_dir" in the following files: "pixloc/pixlib/dataset/kitti.py" and "pixloc/pixlib/dataset/ford.py" or in your training/evaluation script. Additionally, if you wish to change the trajectory for the Ford-CVL dataset, you can adjust the "log_id_train/val/test" in the "pixloc/pixlib/dataset/ford.py" file.
+
+
 ## Models
 Weights of the model trained on *KITTI-CVL* and *Ford-CVL*, hosted [here](https://drive.google.com/drive/folders/1myNYAREvbbJGoWyEYtzJ_fna_na1-buO?usp=drive_link).
 
