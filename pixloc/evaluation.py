@@ -270,8 +270,8 @@ if __name__ == '__main__':
 
     save_path = 'parameter'
 
-    if 0: # test
+    if 1: # test
         test(refiner, test_loader) #val_loader
-    if 1: # val
+    if 0: # visualization 
         Val(refiner, val_loader, save_path, 0)
 
