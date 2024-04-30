@@ -1,7 +1,7 @@
 #!/bin/bash
 declare -A file_dict
 
-file_dict['2017-08-04-V2-Log3-info_files']='EZbpEOaKIetMjAKUOGCSEjcBGQSwizpckJPKlr4s1dH0sA?e=yaoKqg'
+file_dict['2017-08-04-V2-Log3-info_files']='EZbpEOaKIetMjAKUOGCSEjcB-2c_FiPbnuyhSVHvIWaEWg'
 file_dict['2017-08-04-V2-Log4-info_files']='EYOqUb_1a8tDsMBoAokV6S8BzjjwRUrlEPJB_njE5VGKDA?e=Gh2quy'
 file_dict['2017-08-04-V2-Log5-info_files']='EYtT85HV3fRFiAFdZWQ7zLMB5-2sG26MnZEbXiGRpnTxXQ?e=vlJdbg'
 file_dict['2017-08-04-V2-Log6-info_files']='EeDaibG69SxNjNI-DSzQHcMBUOEhiQEGOpqXi0hhyaMltg?e=f41sS3'
