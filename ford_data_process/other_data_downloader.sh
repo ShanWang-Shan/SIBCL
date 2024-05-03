@@ -1,10 +1,12 @@
 #!/bin/bash
 declare -A file_dict
 
+file_dict['2017-08-04-V2-Log1-info_files']='Eby22D-rGtZKoXISuPynmg8BtHyu0s5YV0x2wV_6Kef-Rg'
 file_dict['2017-08-04-V2-Log3-info_files']='EZbpEOaKIetMjAKUOGCSEjcB-2c_FiPbnuyhSVHvIWaEWg'
 file_dict['2017-08-04-V2-Log4-info_files']='EYOqUb_1a8tDsMBoAokV6S8BzjjwRUrlEPJB_njE5VGKDA?e=Gh2quy'
 file_dict['2017-08-04-V2-Log5-info_files']='EYtT85HV3fRFiAFdZWQ7zLMB5-2sG26MnZEbXiGRpnTxXQ?e=vlJdbg'
 file_dict['2017-08-04-V2-Log6-info_files']='EeDaibG69SxNjNI-DSzQHcMBUOEhiQEGOpqXi0hhyaMltg?e=f41sS3'
+file_dict['2017-10-26-V2-Log1-info_files']='EWCoEOyzTChMv3HVsmkER5UB3X9IT078rOQz-U7ju8bSCw'
 file_dict['2017-10-26-V2-Log3-info_files']='EYFArPf4IOFAgO9ZP-z8tEgBgQdLunDt97nCTLsAYxROUQ?e=EM5y4p'
 file_dict['2017-10-26-V2-Log4-info_files']='EfkruM3-WaVIkvRt7yaMjQcBixEY9mxKUa6EPvllcbcVmQ?e=mu7yP4'
 file_dict['2017-10-26-V2-Log5-info_files']='ESd4FRPRyGtCtbgIUa3wM_kBKNZKfTlU7KPMx1knG1b1jw?e=qciLUz'
