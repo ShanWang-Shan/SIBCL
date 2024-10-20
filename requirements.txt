@@ -9,5 +9,6 @@ h5py
 omegaconf
 tensorboard
 open3d
-sklearn
+scikit-learn
+#sklearn
 setuptools==59.5.0

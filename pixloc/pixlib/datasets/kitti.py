@@ -20,7 +20,7 @@ import random
 import cv2
 from pixloc.pixlib.geometry import Camera, Pose
 
-root_dir = "/data/dataset/Kitti" # your kitti dir
+root_dir = "/datasets/work/d61-jca20-recon/work/Shan/dataset/Kitti" # your kitti dir
 satmap_zoom = 18 
 satmap_dir = 'satmap_'+str(satmap_zoom)
 grdimage_dir = 'raw_data'
@@ -240,18 +240,19 @@ class _Dataset(Dataset):
         x_sg, y_sg = gps_func.angular_distance_to_xy_distance_v2(sat_gps[0], sat_gps[1], location[0],
                                                                  location[1])
         meter_per_pixel = Kitti_utils.get_meter_per_pixel(satmap_zoom, scale=1)
-        x_sg = int(x_sg / meter_per_pixel)
-        y_sg = int(-y_sg / meter_per_pixel)
-
+        
         # add the offset between camera and body to shift the center to query camera
         cam_pixel = q2r_gt*camera_center_loc
-        cam_location_x = x_sg + satellite_ori_size / 2.0 + cam_pixel[0,0]
-        cam_location_y = y_sg + satellite_ori_size / 2.0 + cam_pixel[0,1]
+        cam_location_x = satellite_ori_size / 2.0 + cam_pixel[0,0]
+        cam_location_y = satellite_ori_size / 2.0 + cam_pixel[0,1]
+        w2sat = Pose.from_4x4mat(np.array([[1.,0,0,x_sg],[0,1,0,-y_sg],[0,0,1,0],[0,0,0,1]]))
+        q2r_gt = w2sat @ q2r_gt
+
 
         # sat
         camera = Camera.from_colmap(dict(
             model='SIMPLE_PINHOLE',
-            params=(1 / meter_per_pixel, cam_location_x, cam_location_y, 0, 0, 0, 0, np.infty),
+            params=(1 / meter_per_pixel, cam_location_x, cam_location_y, 0, 0, 0, 0, np.inf),
             # np.infty for parallel projection
             width=int(satellite_ori_size), height=int(satellite_ori_size)))
         sat_image = {
@@ -375,14 +376,14 @@ if __name__ == '__main__':
     conf = {
         'max_num_points3D': 1024,
         'force_num_points3D': True,
-        'batch_size': 1,
+        'batch_size': 8,
         'seed': 1,
-        'num_workers': 0,
+        'num_workers': 8,
     }
     dataset = Kitti(conf)
     loader = dataset.get_data_loader('train', shuffle=True)  # or 'train' ‘val’
 
-    for _, data in zip(range(8), loader):
-        print(data)
+    for i, data in zip(range(300), loader):
+        print(i)
 
 

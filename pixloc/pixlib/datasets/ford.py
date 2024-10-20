@@ -26,7 +26,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True # add for 'broken data stream'
 points_type = 0 # 0: use 3d points from map, 1: use 3d points from lidar blue
 gt_from_gps = True #ture: pose gt from gps, False: pose gt from NED pose gt
 
-root_dir = "/data/dataset/Ford_AV" # your Ford_AV dir
+root_dir = "/datasets/work/d61-jca20-recon/work/Shan/dataset/FordAV" # your Ford_AV dir
 sat_dir = 'Satellite_Images_18'
 sat_zoom = 18
 log_id_train = "2017-08-04-V2-Log4"
@@ -207,8 +207,8 @@ class _Dataset(Dataset):
         dx, dy = gps_func.angular_distance_to_xy_distance_v2(satellite_gps[0], satellite_gps[1], query_gps[0],
                                                              query_gps[1])
         # get the pixel offsets of car pose
-        dx_pixel_gps = dx / meter_per_pixel # along the east direction
-        dy_pixel_gps = -dy / meter_per_pixel # along the north direction
+        #dx_pixel_gps = dx / meter_per_pixel # along the east direction
+        #dy_pixel_gps = -dy / meter_per_pixel # along the north direction
 
         if not gt_from_gps:
             query_ned = self.groundview_ned[idx, :]
@@ -217,8 +217,8 @@ class _Dataset(Dataset):
             dx = query_ned[1]-grdx+dx # long east
             dy = query_ned[0]-grdy+dy # lat north
             # get the pixel offsets of car pose
-            dx_pixel_ned = dx / meter_per_pixel # along the east direction
-            dy_pixel_ned = -dy / meter_per_pixel # along the north direction
+            #dx_pixel_ned = dx / meter_per_pixel # along the east direction
+            #dy_pixel_ned = -dy / meter_per_pixel # along the north direction
 
         heading = self.groundview_yaws[idx] * np.pi / 180.0#convert_body_yaw_to_360(self.groundview_yaws[idx]) * np.pi / 180.0 # heading of car
         roll = self.groundview_rolls[idx] * np.pi / 180.0
@@ -259,27 +259,19 @@ class _Dataset(Dataset):
         # add the offset between camera and body to shift the center to query camera
         cam2sat_ori = ned2sat @ body2ned @ Pose.from_4x4mat(self.FL_relPose_body).float()
         cam_location = cam2sat_ori*torch.tensor([0.,0.,0.])/meter_per_pixel
-        cam_location_x = dx_pixel_gps + satellite_ori_size / 2.0 + cam_location[0,0]
-        cam_location_y = dy_pixel_gps + satellite_ori_size / 2.0 + cam_location[0,1]
+        cam_location_x = satellite_ori_size / 2.0 + cam_location[0,0]
+        cam_location_y = satellite_ori_size / 2.0 + cam_location[0,1]
+        w2sat = Pose.from_4x4mat(np.array([[1.,0,0,dx],[0,1,0,-dy],[0,0,1,0],[0,0,0,1]])).float()
+        cam2sat = w2sat @ cam2sat
+
         camera = Camera.from_colmap(dict(
-            model='SIMPLE_PINHOLE', params=(1 / meter_per_pixel, cam_location_x, cam_location_y, 0,0,0,0,np.infty),#np.infty for parallel projection
+            model='SIMPLE_PINHOLE', params=(1 / meter_per_pixel, cam_location_x, cam_location_y, 0,0,0,0,np.inf),#np.infty for parallel projection
             width=int(satellite_ori_size), height=int(satellite_ori_size)))
 
         if not gt_from_gps:
-            cam_location_x = dx_pixel_ned + satellite_ori_size / 2.0 + cam_location[0,0]
-            cam_location_y = dy_pixel_ned + satellite_ori_size / 2.0 + cam_location[0,1]
             camera = Camera.from_colmap(dict(
-                model='SIMPLE_PINHOLE', params=(1 / meter_per_pixel, cam_location_x, cam_location_y, 0,0,0,0,np.infty),#np.infty for parallel projection
+                model='SIMPLE_PINHOLE', params=(1 / meter_per_pixel, cam_location_x, cam_location_y, 0,0,0,0,np.inf),#np.infty for parallel projection
                 width=int(satellite_ori_size), height=int(satellite_ori_size)))
-
-            if 0: #debug gps
-                cam_location_x = dx_pixel_gps + satellite_ori_size / 2.0 + cam_location[0, 0]
-                cam_location_y = dy_pixel_gps + satellite_ori_size / 2.0 + cam_location[0, 1]
-                camera_gps = Camera.from_colmap(dict(
-                    model='SIMPLE_PINHOLE',
-                    params=(1 / meter_per_pixel, cam_location_x, cam_location_y, 0, 0, 0, 0, np.infty),
-                    # np.infty for parallel projection
-                    width=int(satellite_ori_size), height=int(satellite_ori_size)))
 
         sat_image = {
             'image': sat_map.float(),
@@ -336,10 +328,10 @@ class _Dataset(Dataset):
 
         # init and gt pose~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # ramdom shift translation and rotation on yaw
-        YawShiftRange = 30 * np.pi / 180  # in 10 degree
+        YawShiftRange = 15 * np.pi / 180  # in 10 degree
         yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
         R_yaw = torch.tensor([[np.cos(yaw),-np.sin(yaw),0],  [np.sin(yaw),np.cos(yaw),0], [0, 0, 1]])
-        TShiftRange = 10  # in 5 meter
+        TShiftRange = 5  # in 5 meter
         T = 2 * TShiftRange * np.random.rand((3)) - TShiftRange
         T[2] = 0  # no shift on height
         #print(f'in dataset: yaw:{yaw/np.pi*180},t:{T}')
