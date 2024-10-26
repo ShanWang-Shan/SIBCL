@@ -242,8 +242,8 @@ class _Dataset(Dataset):
         meter_per_pixel = Kitti_utils.get_meter_per_pixel(satmap_zoom, scale=1)
         
         # add the offset between camera and body to shift the center to query camera
-        cam_pixel = q2r_gt*camera_center_loc
-        cam_location_x = satellite_ori_size / 2.0 + cam_pixel[0,0]
+        cam_pixel = (q2r_gt*camera_center_loc)/meter_per_pixel
+        cam_location_x = satellite_ori_size / 2.0 + cam_pixel[0,0] 
         cam_location_y = satellite_ori_size / 2.0 + cam_pixel[0,1]
         w2sat = Pose.from_4x4mat(np.array([[1.,0,0,x_sg],[0,1,0,-y_sg],[0,0,1,0],[0,0,0,1]]))
         q2r_gt = w2sat @ q2r_gt
