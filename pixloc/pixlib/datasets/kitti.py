@@ -241,18 +241,14 @@ class _Dataset(Dataset):
                                                                  location[1])
         meter_per_pixel = Kitti_utils.get_meter_per_pixel(satmap_zoom, scale=1)
         
-        # add the offset between camera and body to shift the center to query camera
-        cam_pixel = (q2r_gt*camera_center_loc)/meter_per_pixel
-        cam_location_x = satellite_ori_size / 2.0 + cam_pixel[0,0] 
-        cam_location_y = satellite_ori_size / 2.0 + cam_pixel[0,1]
+        # add the offset between IMU and satellite center in pose 
         w2sat = Pose.from_4x4mat(np.array([[1.,0,0,x_sg],[0,1,0,-y_sg],[0,0,1,0],[0,0,0,1]]))
         q2r_gt = w2sat @ q2r_gt
-
 
         # sat
         camera = Camera.from_colmap(dict(
             model='SIMPLE_PINHOLE',
-            params=(1 / meter_per_pixel, cam_location_x, cam_location_y, 0, 0, 0, 0, np.inf),
+            params=(1 / meter_per_pixel, satellite_ori_size / 2.0, satellite_ori_size / 2.0, 0, 0, 0, 0, np.inf),
             # np.infty for parallel projection
             width=int(satellite_ori_size), height=int(satellite_ori_size)))
         sat_image = {
